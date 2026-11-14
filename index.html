@@ -1,0 +1,2055 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ThreeECharts · 用 Three.js 重写的 ECharts</title>
+<style>
+:root{
+  --bg1:#eef3fb; --bg2:#e2eaf6; --ink:#1f2d40; --muted:#6b7a90;
+  --card:#ffffff; --line:#e2e9f3; --accent:#5470c6;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2));color:var(--ink);min-height:100vh}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 20px 40px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.logo{display:flex;align-items:center;gap:12px}
+.logo .mark{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#5470c6,#38bdf8);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;
+  box-shadow:0 6px 16px rgba(84,112,198,.35);flex:none}
+h1{font-size:20px;letter-spacing:.3px}
+h1 small{font-size:12px;color:var(--muted);font-weight:500;margin-left:8px}
+.sub{font-size:12px;color:var(--muted);margin-top:3px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+.toolbar button{cursor:pointer;font:inherit;font-size:12.5px;color:var(--ink);background:#fff;
+  border:1px solid var(--line);border-radius:999px;padding:7px 14px;transition:.15s;box-shadow:0 1px 2px rgba(31,45,64,.04)}
+.toolbar button:hover{border-color:#b9c8e6;transform:translateY(-1px)}
+.toolbar button.on{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 4px 12px rgba(84,112,198,.35)}
+.toolbar .tgrp{font-size:11px;color:#8a95a6;align-self:center;padding-left:6px;font-weight:600;letter-spacing:.5px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 40px rgba(31,45,64,.10);overflow:hidden}
+#chart{position:relative;height:560px}
+#chart canvas{display:block}
+/* ---- HTML 覆盖层（标题 / 图例 / 提示框 / visualMap）---- */
+.tec-title{position:absolute;top:16px;left:20px;pointer-events:none;z-index:5}
+.tec-title .t{font-size:16.5px;font-weight:700;color:#22314d}
+.tec-title .s{font-size:12px;color:var(--muted);margin-top:3px}
+.tec-legend{position:absolute;top:18px;right:20px;display:flex;gap:14px;z-index:6;flex-wrap:wrap;max-width:70%}
+.tec-legend .item{display:flex;align-items:center;gap:6px;font-size:12.5px;color:#44536e;cursor:pointer;
+  user-select:none;transition:.15s}
+.tec-legend .item i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.tec-legend .item.off{opacity:.32}
+.tec-legend .item:hover{opacity:.75}
+.tec-tip{position:absolute;z-index:20;pointer-events:none;background:rgba(255,255,255,.96);
+  border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(31,45,64,.16);
+  padding:9px 12px;font-size:12.5px;color:#2a3850;display:none;min-width:120px}
+.tec-tip .t{display:flex;align-items:center;gap:6px;font-weight:600;margin-bottom:5px}
+.tec-tip .t i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.tec-tip .r{display:flex;justify-content:space-between;gap:16px;margin-top:2px;color:#5a6b85}
+.tec-tip .r b{font-variant-numeric:tabular-nums;color:#1f2d40}
+.tec-vm{position:absolute;right:22px;top:50%;transform:translateY(-50%);z-index:5;pointer-events:none;
+  display:flex;gap:8px;align-items:center;flex-direction:column}
+.tec-vm .bar{width:12px;height:150px;border-radius:6px;border:1px solid rgba(255,255,255,.7)}
+.tec-vm .v{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tec-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  text-align:center;font-size:14px;color:var(--muted);line-height:1.9;padding:0 40px}
+details{border-top:1px solid var(--line);background:#fbfcfe}
+details summary{cursor:pointer;padding:12px 20px;font-size:13px;color:var(--muted);list-style:none}
+details summary::before{content:'▸ '}
+details[open] summary::before{content:'▾ '}
+pre{padding:0 20px 18px;font:12px/1.65 ui-monospace,'SF Mono',Consolas,Menlo,monospace;color:#33415c;white-space:pre;overflow:auto}
+footer{margin-top:16px;font-size:12px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+kbd{background:#fff;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:11px;font-family:inherit}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <div class="mark">3E</div>
+      <div>
+        <h1>ThreeECharts<small>Three.js 版 ECharts</small></h1>
+        <div class="sub">用 Three.js 重写的图表库 · 兼容 ECharts option 配置风格 · 21 种图表类型 · WebGL 渲染 · 本地内置 three.js r147，零外部请求</div>
+      </div>
+    </div>
+    <div class="toolbar" id="toolbar"></div>
+  </header>
+
+  <div class="card">
+    <div id="chart"></div>
+    <details>
+      <summary>查看当前图表的 option 配置（与 ECharts 写法一致）</summary>
+      <pre id="code"></pre>
+    </details>
+  </div>
+
+  <footer>
+    <div>交互：<kbd>拖拽</kbd> 旋转视角 · <kbd>滚轮</kbd> 缩放 · <kbd>双击</kbd> 复位视角 · 悬停查看数值 · 点击图例显示/隐藏系列</div>
+    <div>ThreeECharts v2.0 · series：bar / line / pie / scatter / effectScatter / candlestick / boxplot / heatmap / radar / parallel / graph / sankey / tree / treemap / sunburst / funnel / gauge / lines / themeRiver / pictorialBar / surface（map 需 GeoJSON、custom 为用户自定义渲染器，不在 3D 版范围）</div>
+  </footer>
+</div>
+
+<script src="libs/three.min.js"></script>
+<script>
+/* =====================================================================
+ * ThreeECharts — 用 Three.js 重写的 ECharts
+ *  API: ThreeECharts.init(dom) -> chart.setOption(option) / resize() / dispose()
+ *  支持: bar / line / pie / scatter / surface(扩展) 系列类型,
+ *        title / legend / tooltip / xAxis / yAxis, 入场动画, 图例联动, 悬停高亮
+ * ===================================================================== */
+(function () {
+'use strict';
+
+/* ---------------- 常量与工具 ---------------- */
+const PALETTE = ['#5470c6','#91cc75','#fac858','#ee6666','#73c0de','#3ba272','#fc8452','#9a60b4','#ea7ccc'];
+const W = 15, D = 9, H = 8;                 // 图表区世界坐标尺寸（宽 / 深 / 高）
+const FONT = "system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif";
+
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const easeOutBack  = t => { const c = 1.70158; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const fmt = v => Math.abs(v) >= 1000 ? v.toLocaleString('en-US') : String(+(v.toFixed(2)));
+const trimNum = t => String(+(t.toFixed(2)));
+
+/* 简易补间系统 */
+const tweens = new Set();
+function tween(opt) {
+  const tw = {
+    start: performance.now() + (opt.delay || 0),
+    dur: opt.duration || 700,
+    ease: opt.ease || easeOutCubic,
+    from: opt.from !== undefined ? opt.from : 0,
+    to: opt.to !== undefined ? opt.to : 1,
+    update: opt.update, done: opt.done,
+    loop: opt.loop || false, gap: opt.gap || 0,
+  };
+  tweens.add(tw);
+  return tw;
+}
+function stepTweens(now) {
+  tweens.forEach(tw => {
+    if (now < tw.start) return;
+    let t = (now - tw.start) / tw.dur;
+    if (t >= 1 && tw.loop) { tw.start = now + tw.gap; t = 0; }
+    const tt = Math.min(1, t);
+    tw.update && tw.update(tw.from + (tw.to - tw.from) * tw.ease(tt), tt);
+    if (tt >= 1 && !tw.loop) { tweens.delete(tw); tw.done && tw.done(); }
+  });
+}
+function clearTweens() { tweens.clear(); }
+
+/* 优雅刻度 */
+function niceStep(range, split) {
+  if (range <= 0) return 1;
+  const raw = range / (split || 5);
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (raw <= m * pow + 1e-9) return m * pow;
+  return 10 * pow;
+}
+function ticksOf(lo, hi) {
+  const step = niceStep(hi - lo);
+  const start = Math.ceil(lo / step - 1e-9) * step;
+  const end = Math.floor(hi / step + 1e-9) * step;
+  const arr = [];
+  for (let v = start; v <= end + 1e-9; v += step) arr.push(+v.toFixed(6));
+  return arr;
+}
+
+/* Canvas 文本 -> Sprite 标签 */
+function makeLabel(text, opts) {
+  opts = opts || {};
+  const size = opts.size || 26, color = opts.color || '#5a6b82', scale = 2;
+  const font = (opts.bold ? '600 ' : '') + size * scale + 'px ' + FONT;
+  const cv = document.createElement('canvas');
+  let ctx = cv.getContext('2d');
+  ctx.font = font;
+  const pad = 6 * scale;
+  cv.width = Math.ceil(ctx.measureText(text).width) + pad * 2;
+  cv.height = size * scale + pad * 2;
+  ctx = cv.getContext('2d');
+  ctx.font = font;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.fillText(text, cv.width / 2, cv.height / 2);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sp = new THREE.Sprite(mat);
+  const h = opts.worldH || 0.52;
+  sp.scale.set(h * cv.width / cv.height, h, 1);
+  sp.userData.disposables = [tex, mat];
+  return sp;
+}
+
+/* 颜色渐变（surface visualMap 用） */
+const RAMP = ['#2151d0', '#1fa2a8', '#67c23a', '#f7d154', '#e0452f'];
+function rampColor(t) {
+  t = clamp(t, 0, 1);
+  const seg = t * (RAMP.length - 1);
+  const i = Math.min(RAMP.length - 2, Math.floor(seg));
+  const c = new THREE.Color(RAMP[i]).lerp(new THREE.Color(RAMP[i + 1]), seg - i);
+  return c;
+}
+
+/* 共享几何体 */
+const BAR_GEO = new THREE.BoxGeometry(1, 1, 1); BAR_GEO.translate(0, .5, 0);   // 底部对齐
+const DROP_GEO = new THREE.CylinderGeometry(.018, .018, 1, 6); DROP_GEO.translate(0, .5, 0);
+const MARK_GEO = new THREE.SphereGeometry(.19, 18, 14);
+
+/* 两点间直连圆柱（关系边 / 须线） */
+function tubeBetween(a, b, r, mat) {
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, a.distanceTo(b), 10), mat);
+  mesh.position.copy(a).lerp(b, .5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+  return mesh;
+}
+
+/* squarified treemap 布局：返回 [{x, z, w, d}]，区域从 (0,0) 到 (Wt,Dt) */
+function squarify(vals, Wt, Dt) {
+  const total = vals.reduce((a, b) => a + b, 0) || 1;
+  const scale = Wt * Dt / total;
+  const vs = vals.map(v => Math.max(1e-6, v * scale));
+  const rects = [];
+  let x = 0, z = 0, w = Wt, d = Dt, i = 0;
+  while (i < vs.length) {
+    const short = Math.max(1e-6, Math.min(w, d));
+    let j = i, sum = 0, best = null;
+    while (j < vs.length) {
+      const nsum = sum + vs[j];
+      const thick = nsum / short;
+      let wr = 0;
+      for (let k = i; k <= j; k++) wr = Math.max(wr, Math.max(thick * thick / vs[k], vs[k] / (thick * thick)));
+      if (best === null || wr <= best.wr) { best = { wr, j, thick }; sum = nsum; j++; }
+      else break;
+    }
+    let off = 0;
+    for (let k = i; k <= best.j; k++) {
+      const len = vs[k] / best.thick;
+      if (w >= d) rects.push({ x: x, z: z + off, w: best.thick, d: len });
+      else rects.push({ x: x + off, z: z, w: len, d: best.thick });
+      off += len;
+    }
+    if (w >= d) { x += best.thick; w -= best.thick; } else { z += best.thick; d -= best.thick; }
+    i = best.j + 1;
+  }
+  return rects;
+}
+
+/* ---------------- 主类 ---------------- */
+class ThreeChart {
+  constructor(dom) {
+    this.dom = typeof dom === 'string' ? document.querySelector(dom) : dom;
+    this.dom.classList.add('tec-root');
+    this.dom.style.cursor = 'grab';
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.dom.appendChild(this.renderer.domElement);
+
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color('#f4f6fa');
+
+    this.camera = new THREE.PerspectiveCamera(40, 1, .1, 300);
+    this.target = new THREE.Vector3(0, 2.1, 0);
+    this.view = { theta: .52, phi: 1.04, r: 25, tTheta: .52, tPhi: 1.04, tR: 25 };
+
+    /* 灯光 */
+    this.scene.add(new THREE.AmbientLight(0xffffff, .72));
+    const sun = new THREE.DirectionalLight(0xffffff, .82);
+    sun.position.set(9, 16, 11);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -22; sun.shadow.camera.right = 22;
+    sun.shadow.camera.top = 22; sun.shadow.camera.bottom = -22;
+    sun.shadow.camera.near = 1; sun.shadow.camera.far = 60;
+    this.scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xcfe0ff, .28);
+    fill.position.set(-12, 9, -8);
+    this.scene.add(fill);
+
+    /* 接收阴影的地面 */
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(90, 90),
+      new THREE.ShadowMaterial({ opacity: .13, color: 0x1b2a4a })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    this.scene.add(ground);
+
+    this.chartRoot = new THREE.Group();
+    this.scene.add(this.chartRoot);
+
+    this.raycaster = new THREE.Raycaster();
+    this.mouse = new THREE.Vector2(-2, -2);
+    this.client = { x: 0, y: 0 };
+    this.pointerInside = false;
+    this.dragging = false;
+    this.hovered = null;
+    this.pickables = [];
+    this.pieMeshes = [];
+    this.legendMap = [];
+    this.tmpV = new THREE.Vector3();
+
+    /* HTML 覆盖层 */
+    this.tip = document.createElement('div');
+    this.tip.className = 'tec-tip';
+    this.dom.appendChild(this.tip);
+
+    this._bindEvents();
+    this._ro = new ResizeObserver(() => this.resize());
+    this._ro.observe(this.dom);
+    this.resize();
+
+    this.clock = new THREE.Clock();
+    this._loop = this._loop.bind(this);
+    this._raf = requestAnimationFrame(this._loop);
+  }
+
+  /* ---------- 事件与交互 ---------- */
+  _bindEvents() {
+    const cv = this.renderer.domElement;
+    cv.addEventListener('pointerdown', e => {
+      this.dragging = true; this._btn = e.button;
+      this._lx = e.clientX; this._ly = e.clientY;
+      cv.setPointerCapture(e.pointerId);
+      this._setHovered(null);
+    });
+    cv.addEventListener('pointerup', e => { this.dragging = false; try { cv.releasePointerCapture(e.pointerId); } catch (_) {} });
+    cv.addEventListener('pointermove', e => {
+      const rect = cv.getBoundingClientRect();
+      this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      this.client.x = e.clientX; this.client.y = e.clientY;
+      this.pointerInside = true;
+      if (this.dragging && this._btn === 0) {
+        const dx = e.clientX - this._lx, dy = e.clientY - this._ly;
+        this._lx = e.clientX; this._ly = e.clientY;
+        this.view.tTheta -= dx * .0052;
+        this.view.tPhi = clamp(this.view.tPhi - dy * .0052, .18, 1.5);
+      }
+      if (this.hovered) this._positionTip();
+    });
+    cv.addEventListener('pointerleave', () => { this.pointerInside = false; this._setHovered(null); });
+    cv.addEventListener('wheel', e => {
+      e.preventDefault();
+      this.view.tR = clamp(this.view.tR * (1 + e.deltaY * .0012), 11, 60);
+    }, { passive: false });
+    cv.addEventListener('dblclick', () => this._resetView());
+    cv.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  _resetView() { Object.assign(this.view, { tTheta: .52, tPhi: 1.04, tR: 25 }); }
+  resize() {
+    const w = this.dom.clientWidth || 1, h = this.dom.clientHeight || 1;
+    this.renderer.setSize(w, h);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+
+  _loop() {
+    this._raf = requestAnimationFrame(this._loop);
+    const dt = Math.min(.05, this.clock.getDelta());
+    stepTweens(performance.now());
+    this._updateCamera(dt);
+    this._updatePieLift(dt);
+    if (this.pointerInside && !this.dragging) this._doHover();
+    this.renderer.render(this.scene, this.camera);
+  }
+  _updateCamera(dt) {
+    const v = this.view, k = 1 - Math.pow(.0001, dt);
+    v.theta += (v.tTheta - v.theta) * k;
+    v.phi += (v.tPhi - v.phi) * k;
+    v.r += (v.tR - v.r) * k;
+    const sp = Math.sin(v.phi);
+    this.camera.position.set(
+      this.target.x + v.r * sp * Math.sin(v.theta),
+      this.target.y + v.r * Math.cos(v.phi),
+      this.target.z + v.r * sp * Math.cos(v.theta)
+    );
+    this.camera.lookAt(this.target);
+  }
+  _updatePieLift(dt) {
+    const hovMesh = this.hovered ? this.hovered.hl : null;
+    this.pieMeshes.forEach(m => {
+      const t = m.userData.baseY + (m === hovMesh ? .42 : 0);
+      m.position.y += (t - m.position.y) * Math.min(1, dt * 12);
+    });
+  }
+
+  /* ---------- 悬停拾取 ---------- */
+  _doHover() {
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const visible = this.pickables.filter(o => {
+      let p = o; while (p) { if (!p.visible) return false; p = p.parent; }
+      return true;
+    });
+    const hits = this.raycaster.intersectObjects(visible, false);
+    if (!hits.length) { this._setHovered(null); return; }
+    const hit = hits[0];
+    let hl = hit.object, pick = hl.userData.pick;
+    if (pick && pick.kind === 'tube') {   // 折线管命中 -> tooltip 就近吸附数据点, 高亮仍是折线管
+      let bi = 0, bd = Infinity;
+      pick.markers.forEach((m, i) => {
+        const d = hit.point.distanceTo(m.getWorldPosition(this.tmpV));
+        if (d < bd) { bd = d; bi = i; }
+      });
+      const mk = pick.markers[bi];
+      pick = Object.assign({}, mk.userData.pick, { _hlKind: 'tube' });
+      hl = hit.object;
+    }
+    this._setHovered({ hl, pick });
+  }
+  _setHovered(next) {
+    const cur = this.hovered;
+    if (cur && next && cur.hl === next.hl) { this.hovered = next; return; }
+    if (cur) this._unhighlight(cur.hl, cur.pick);
+    this.hovered = next;
+    if (next) {
+      this._highlight(next.hl, next.pick);
+      this.tip.innerHTML = this._tipHTML(next.pick);
+      this.tip.style.display = 'block';
+      this._positionTip();
+      this.dom.style.cursor = 'pointer';
+    } else {
+      this.tip.style.display = 'none';
+      this.dom.style.cursor = 'grab';
+    }
+  }
+  _highlight(mesh, pick) {
+    const kind = pick._hlKind || pick.kind;
+    if (kind === 'bar') mesh.material.emissiveIntensity = .3;
+    else if (kind === 'tube') mesh.material.emissiveIntensity = .16;
+    else if (kind === 'marker') mesh.scale.setScalar((mesh.userData.baseScale || 1) * 1.4);
+  }
+  _unhighlight(mesh, pick) {
+    const kind = pick._hlKind || pick.kind;
+    if (kind === 'bar') mesh.material.emissiveIntensity = 0;
+    else if (kind === 'tube') mesh.material.emissiveIntensity = 0;
+    else if (kind === 'marker') mesh.scale.setScalar(mesh.userData.baseScale || 1);
+  }
+  _tipHTML(p) {
+    const title = '<div class="t"><i style="background:' + p.color + '"></i>' + esc(p.series) + '</div>';
+    if (p.html) return title + p.html;
+    let rows;
+    if (p.kind === 'pie') {
+      rows = '<div class="r"><span>' + esc(p.name) + '</span><b>' + fmt(p.value) + '</b></div>' +
+             '<div class="r"><span>占比</span><b>' + p.percent + '%</b></div>';
+    } else if (p.value === '' || p.value === undefined || p.value === null) {
+      rows = '<div class="r"><span>' + esc(p.name) + '</span><b>-</b></div>';
+    } else {
+      rows = '<div class="r"><span>' + esc(p.name) + '</span><b>' + fmt(p.value) + '</b></div>';
+    }
+    return title + rows;
+  }
+  _positionTip() {
+    const rect = this.dom.getBoundingClientRect();
+    let x = this.client.x - rect.left + 16, y = this.client.y - rect.top + 14;
+    const tw = this.tip.offsetWidth, th = this.tip.offsetHeight;
+    if (x + tw > rect.width - 8) x = this.client.x - rect.left - tw - 14;
+    if (y + th > rect.height - 8) y = this.client.y - rect.top - th - 12;
+    this.tip.style.left = Math.max(4, x) + 'px';
+    this.tip.style.top = Math.max(4, y) + 'px';
+  }
+
+  /* ---------- 公开 API ---------- */
+  setOption(option) {
+    this.option = option || {};
+    this._clearChart();
+    clearTweens();
+
+    const series = this.option.series || [];
+    this.seriesList = series.map((s, i) => Object.assign({}, s, { _index: i, _color: PALETTE[i % PALETTE.length] }));
+
+    /* themeRiver 预处理：整理为 时刻 x 系列矩阵，轴刻度用每时刻合计 */
+    this.seriesList.forEach(s => {
+      if (s.type !== 'themeRiver') return;
+      const times = [], names = [];
+      (s.data || []).forEach(row => {
+        if (!times.includes(row[0])) times.push(row[0]);
+        if (!names.includes(row[2])) names.push(row[2]);
+      });
+      const matrix = {};
+      names.forEach(nm => { matrix[nm] = times.map(() => 0); });
+      (s.data || []).forEach(row => { matrix[row[2]][times.indexOf(row[0])] += row[1] || 0; });
+      s._river = { times, names, matrix };
+      s.data = times.map((_, i) => names.reduce((a, nm) => a + matrix[nm][i], 0));
+    });
+
+    const axisTypes = ['bar', 'line', 'scatter', 'effectScatter', 'candlestick', 'boxplot', 'pictorialBar', 'heatmap', 'themeRiver'];
+    const axisSeries = this.seriesList.filter(s => axisTypes.includes(s.type));
+    axisSeries.forEach((s, i) => { s._row = i; });
+
+    if (axisSeries.length) this._buildAxes(axisSeries);
+    this.seriesList.forEach(s => {
+      const fn = this['_build_' + s.type];
+      if (fn) fn.call(this, s);
+    });
+    this._buildOverlay();
+  }
+  dispose() {
+    cancelAnimationFrame(this._raf);
+    this._ro.disconnect();
+    this._clearChart();
+    this.renderer.dispose();
+    if (this.renderer.domElement.parentNode) this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+    this.tip.remove();
+  }
+
+  /* ---------- 清理 ---------- */
+  _clearChart() {
+    const disposeObj = o => {
+      if (o.geometry && o.geometry !== BAR_GEO && o.geometry !== DROP_GEO && o.geometry !== MARK_GEO) o.geometry.dispose();
+      const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+      mats.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+      if (o.userData && o.userData.disposables) o.userData.disposables.forEach(d => d.dispose && d.dispose());
+    };
+    const walk = g => { g.children.slice().forEach(c => { walk(c); disposeObj(c); }); };
+    walk(this.chartRoot);
+    this.chartRoot.clear();
+    this.pickables = [];
+    this.pieMeshes = [];
+    this.legendMap = [];
+    this.hovered = null;
+    this.tip.style.display = 'none';
+    ['.tec-title', '.tec-legend', '.tec-vm'].forEach(sel => {
+      this.dom.querySelectorAll(sel).forEach(el => el.remove());
+    });
+  }
+
+  /* ---------- 坐标轴 ---------- */
+  _buildAxes(axisSeries) {
+    const opt = this.option;
+    const xOpt = (opt.xAxis && !Array.isArray(opt.xAxis)) ? opt.xAxis : (opt.xAxis && opt.xAxis[0]) || {};
+    const yOpt = (opt.yAxis && !Array.isArray(opt.yAxis)) ? opt.yAxis : (opt.yAxis && opt.yAxis[0]) || {};
+    const g = new THREE.Group();
+
+    /* Y 轴：类目型（heatmap 等）或数值型 */
+    const yIsCat = yOpt.type === 'category' || (!yOpt.type && yOpt.data);
+    this.yCats = yIsCat ? (yOpt.data || []) : null;
+    if (yIsCat) {
+      this.yLo = 0; this.yTop = 1; this.yTicks = [];
+    } else {
+      let yMax = 0, yMin = 0;
+      axisSeries.forEach(s => {
+        if (s.type === 'candlestick') (s.data || []).forEach(d => { yMax = Math.max(yMax, d[3]); yMin = Math.min(yMin, d[2]); });
+        else if (s.type === 'boxplot') (s.data || []).forEach(d => { yMax = Math.max(yMax, d[4]); yMin = Math.min(yMin, d[0]); });
+        else (s.data || []).forEach(d => {
+          const v = Array.isArray(d) ? d[1] : d;
+          if (typeof v === 'number') { yMax = Math.max(yMax, v); yMin = Math.min(yMin, v); }
+        });
+      });
+      this.yLo = Math.min(0, yMin);
+      const yTicks = ticksOf(this.yLo, yMax);
+      this.yTop = yTicks.length ? yTicks[yTicks.length - 1] : 1;
+      this.yTicks = yTicks;
+    }
+    const wY = v => (v - this.yLo) / (this.yTop - this.yLo) * H;
+
+    /* X 轴：类目 or 数值 */
+    this.xType = xOpt.type === 'value' ? 'value' : 'category';
+    let xTicks = [], xDivs = [], xLabels = [];
+    if (this.xType === 'category') {
+      this.xCats = xOpt.data ||
+        (axisSeries[0] && axisSeries[0]._river ? axisSeries[0]._river.times :
+         axisSeries[0] ? axisSeries[0].data.map((_, i) => '' + i) : []);
+      const n = this.xCats.length, slot = W / n;
+      this.xAt = i => -W / 2 + (i + .5) * slot;
+      for (let i = 0; i <= n; i++) xDivs.push(-W / 2 + i * slot);
+      xLabels = this.xCats.map((c, i) => ({ text: String(c), x: this.xAt(i) }));
+    } else {
+      let lo = xOpt.min, hi = xOpt.max;
+      const xs = [];
+      axisSeries.forEach(s => (s.data || []).forEach(d => { if (Array.isArray(d)) xs.push(d[0]); }));
+      if (lo === undefined || lo === null) lo = Math.min.apply(null, xs);
+      if (hi === undefined || hi === null) hi = Math.max.apply(null, xs);
+      this.xLo = lo; this.xHi = hi;
+      xTicks = ticksOf(lo, hi);
+      this.xAt = v => -W / 2 + (v - lo) / (hi - lo) * W;
+      xDivs = xTicks.map(t => this.xAt(t));
+      xLabels = xTicks.map(t => ({ text: trimNum(t), x: this.xAt(t) }));
+    }
+
+    /* 网格线：类目 y 轴画地面网格，数值 y 轴画背景墙 */
+    const grid = [];
+    if (yIsCat) {
+      xDivs.forEach(x => grid.push(x, 0, -D / 2, x, 0, D / 2));
+      const ny = Math.max(1, this.yCats.length);
+      for (let j = 0; j <= ny; j++) { const z = -D / 2 + j * (D / ny); grid.push(-W / 2, 0, z, W / 2, 0, z); }
+    } else {
+      this.yTicks.forEach(t => {
+        const y = wY(t);
+        grid.push(-W / 2, y, -D / 2, W / 2, y, -D / 2);
+      });
+      xDivs.forEach(x => grid.push(x, 0, -D / 2, x, H, -D / 2));
+    }
+    const gridGeo = new THREE.BufferGeometry();
+    gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(grid, 3));
+    g.add(new THREE.LineSegments(gridGeo, new THREE.LineBasicMaterial({ color: 0xdce3ef })));
+
+    /* 轴线 */
+    const ax = [];
+    ax.push(-W / 2, 0, D / 2, W / 2, 0, D / 2);            // 前边
+    ax.push(-W / 2, 0, -D / 2, -W / 2, 0, D / 2);          // 左边
+    ax.push(W / 2, 0, -D / 2, W / 2, 0, D / 2);            // 右边
+    ax.push(-W / 2, 0, -D / 2, W / 2, 0, -D / 2);          // 后边
+    if (!yIsCat) ax.push(-W / 2, 0, -D / 2, -W / 2, H, -D / 2);   // Y 轴
+    const axGeo = new THREE.BufferGeometry();
+    axGeo.setAttribute('position', new THREE.Float32BufferAttribute(ax, 3));
+    g.add(new THREE.LineSegments(axGeo, new THREE.LineBasicMaterial({ color: 0xaab7cc })));
+
+    /* 类目 / 数值标签 */
+    xLabels.forEach(l => {
+      const sp = makeLabel(l.text, { color: '#5a6b82' });
+      sp.position.set(l.x, .34, D / 2 + .55);
+      g.add(sp);
+    });
+    /* Y 轴刻度 / 类目标签 */
+    if (yIsCat) {
+      const ny = Math.max(1, this.yCats.length);
+      this.yCats.forEach((c, j) => {
+        const sp = makeLabel(String(c), { color: '#5a6b82' });
+        sp.position.set(-W / 2 - .9, .3, -D / 2 + (j + .5) * (D / ny));
+        g.add(sp);
+      });
+    } else {
+      this.yTicks.forEach(t => {
+        const sp = makeLabel(trimNum(t), { color: '#8a95a6' });
+        sp.position.set(-W / 2 - .8, wY(t) + .14, -D / 2);
+        g.add(sp);
+      });
+    }
+    /* 轴名称 */
+    if (xOpt.name) {
+      const sp = makeLabel(xOpt.name, { color: '#7c8aa0', size: 24, worldH: .45 });
+      sp.position.set(W / 2 + .9, .34, D / 2 + .55);
+      g.add(sp);
+    }
+    if (yOpt.name) {
+      const sp = makeLabel(yOpt.name, { color: '#7c8aa0', size: 24, worldH: .45 });
+      sp.position.set(yIsCat ? -W / 2 - 1.0 : -W / 2 - 1.0, yIsCat ? 1.1 : H + .55, yIsCat ? -D / 2 : -D / 2);
+      g.add(sp);
+    }
+    this.chartRoot.add(g);
+  }
+
+  /* ---------- HTML 覆盖层：标题 / 图例 ---------- */
+  _buildOverlay() {
+    const o = this.option;
+    if (o.title && o.title.text) {
+      const d = document.createElement('div');
+      d.className = 'tec-title';
+      d.innerHTML = '<div class="t">' + esc(o.title.text) + '</div>' +
+        (o.title.subtext ? '<div class="s">' + esc(o.title.subtext) + '</div>' : '');
+      this.dom.appendChild(d);
+    }
+    if (o.legend !== undefined && o.legend !== false && this.legendMap.length) {
+      const names = (o.legend && o.legend.data) ? o.legend.data : this.legendMap.map(it => it.name);
+      const d = document.createElement('div');
+      d.className = 'tec-legend';
+      names.forEach(name => {
+        const item = this.legendMap.find(it => it.name === name);
+        if (!item) return;
+        const el = document.createElement('div');
+        el.className = 'item';
+        el.innerHTML = '<i style="background:' + item.color + '"></i>' + esc(name);
+        el.addEventListener('click', () => {
+          item.group.visible = !item.group.visible;
+          el.classList.toggle('off', !item.group.visible);
+        });
+        d.appendChild(el);
+      });
+      this.dom.appendChild(d);
+    }
+  }
+  _registerLegend(name, color, group) {
+    this.legendMap.push({ name, color, group });
+  }
+
+  /* ================= 系列实现 ================= */
+
+  /* --- 3D 柱状图 --- */
+  _build_bar(s) {
+    const cats = this.xCats || (s.data || []).map((_, i) => '' + i);
+    const n = cats.length, m = Math.max(1, this.seriesList.filter(x => x._row !== undefined).length);
+    const rowZ = -D / 2 + (s._row + .5) * (D / m);
+    const slot = W / n;
+    const bw = Math.min(1.15, slot * .52);
+    const bd = Math.min(1.15, (D / m) * .52);
+    const group = new THREE.Group();
+
+    (s.data || []).forEach((val, i) => {
+      const mat = new THREE.MeshStandardMaterial({
+        color: s._color, roughness: .5, metalness: .12,
+        emissive: s._color, emissiveIntensity: 0,
+      });
+      const mesh = new THREE.Mesh(BAR_GEO, mat);
+      const h = Math.max(.02, (val - Math.max(this.yLo, 0)) / (this.yTop - Math.max(this.yLo, 0)) * H);
+      mesh.position.set(this.xAt(i), 0, rowZ);
+      mesh.scale.set(bw, .001, bd);
+      mesh.castShadow = true;
+      mesh.userData.pick = { kind: 'bar', series: s.name, name: String(cats[i]), value: val, color: s._color };
+      tween({
+        delay: 90 + i * 24, duration: 620,
+        update: p => { mesh.scale.y = Math.max(.001, h * p); },
+      });
+      group.add(mesh);
+      this.pickables.push(mesh);
+    });
+    this.chartRoot.add(group);
+    this._registerLegend(s.name, s._color, group);
+  }
+
+  /* --- 3D 折线图 --- */
+  _build_line(s) {
+    const cats = this.xCats || (s.data || []).map((_, i) => '' + i);
+    const m = Math.max(1, this.seriesList.filter(x => x._row !== undefined).length);
+    const rowZ = -D / 2 + (s._row + .5) * (D / m);
+    const group = new THREE.Group();
+    const pts = (s.data || []).map((v, i) =>
+      new THREE.Vector3(this.xAt(i), (v - this.yLo) / (this.yTop - this.yLo) * H, rowZ));
+
+    /* 折线管 */
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const segs = Math.max(60, pts.length * 8);
+    const tubeGeo = new THREE.TubeGeometry(curve, segs, .09, 12, false);
+    tubeGeo.setDrawRange(0, 0);
+    const tubeMat = new THREE.MeshStandardMaterial({
+      color: s._color, roughness: .38, metalness: .15,
+      emissive: s._color, emissiveIntensity: 0,
+    });
+    const tube = new THREE.Mesh(tubeGeo, tubeMat);
+    tube.castShadow = true;
+    const total = tubeGeo.index.count;
+    tween({ delay: 120, duration: 1050, update: p => tubeGeo.setDrawRange(0, Math.floor(total * p)) });
+    group.add(tube);
+
+    /* 数据点标记 + 落地线 */
+    const markers = [];
+    const n = pts.length;
+    pts.forEach((p, i) => {
+      const mkMat = new THREE.MeshStandardMaterial({ color: s._color, roughness: .35, metalness: .2 });
+      const mk = new THREE.Mesh(MARK_GEO, mkMat);
+      mk.position.copy(p);
+      mk.scale.setScalar(.001);
+      mk.userData.pick = { kind: 'marker', series: s.name, name: String(cats[i]), value: s.data[i], color: s._color };
+      tween({
+        delay: 150 + 900 * (n > 1 ? i / (n - 1) : 0), duration: 260, ease: easeOutBack,
+        update: v => { mk.scale.setScalar(Math.max(.001, v)); mk.userData.baseScale = 1; },
+      });
+      group.add(mk);
+      markers.push(mk);
+      this.pickables.push(mk);
+
+      const dl = new THREE.Mesh(DROP_GEO, new THREE.MeshBasicMaterial({
+        color: s._color, transparent: true, opacity: .28, depthWrite: false,
+      }));
+      dl.position.set(p.x, 0, rowZ);
+      dl.scale.y = .001;
+      tween({ delay: 150 + 900 * (n > 1 ? i / (n - 1) : 0), duration: 420, update: v => { dl.scale.y = Math.max(.001, p.y * v); } });
+      group.add(dl);
+    });
+    tube.userData.pick = { kind: 'tube', series: s.name, name: s.name, value: '', color: s._color, markers };
+    this.pickables.push(tube);
+
+    this.chartRoot.add(group);
+    this._registerLegend(s.name, s._color, group);
+  }
+
+  /* --- 3D 饼图 --- */
+  _build_pie(s) {
+    const items = s.data || [];
+    const total = items.reduce((t, d) => t + (d.value || 0), 0) || 1;
+    const R = 3.6, hgt = 2.4, gap = .022;
+    let a0 = 0;
+    items.forEach((d, i) => {
+      const frac = (d.value || 0) / total;
+      const a1 = a0 + frac * Math.PI * 2;
+      const thetaStart = Math.PI - a1 + gap / 2;
+      const thetaLen = Math.max(.012, (a1 - a0) - gap);
+      const color = PALETTE[i % PALETTE.length];
+      const mat = new THREE.MeshStandardMaterial({
+        color, roughness: .48, metalness: .12,
+        emissive: color, emissiveIntensity: 0,
+      });
+      const mesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(R, R, hgt, 48, 1, false, thetaStart, thetaLen), mat);
+      mesh.position.y = hgt / 2;
+      mesh.castShadow = true;
+      mesh.userData.pick = { kind: 'pie', series: s.name, name: d.name, value: d.value,
+        percent: Math.round(frac * 1000) / 10, color };
+      mesh.userData.baseY = hgt / 2;
+      mesh.scale.setScalar(.001);
+      tween({ delay: i * 80, duration: 520, update: p => mesh.scale.setScalar(Math.max(.001, p)) });
+      this.pickables.push(mesh);
+      this.pieMeshes.push(mesh);
+
+      /* 标签 */
+      const pct = Math.round(frac * 100);
+      const ang = Math.PI - (a0 + a1) / 2;
+      const lr = R + 1.35;
+      const label = makeLabel(d.name + ' ' + pct + '%', { color: '#44536e', size: 30, worldH: .62 });
+      label.position.set(lr * Math.sin(ang), hgt + .6, lr * Math.cos(ang));
+      label.material.opacity = 0;
+      tween({ delay: 560 + i * 60, duration: 380, update: v => { label.material.opacity = v; } });
+
+      /* 每个数据项一个分组，供图例切换显隐 */
+      const holder = new THREE.Group();
+      holder.add(mesh); holder.add(label);
+      this.chartRoot.add(holder);
+      this._registerLegend(d.name, color, holder);
+
+      a0 = a1;
+    });
+  }
+
+  /* --- 3D 散点图 --- */
+  _build_scatter(s) {
+    const m = Math.max(1, this.seriesList.filter(x => x._row !== undefined).length);
+    const rowZ = -D / 2 + (s._row + .5) * (D / m);
+    const group = new THREE.Group();
+    (s.data || []).forEach((d, i) => {
+      const mat = new THREE.MeshStandardMaterial({
+        color: s._color, roughness: .4, metalness: .18,
+        emissive: s._color, emissiveIntensity: 0,
+      });
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(.3, 20, 16), mat);
+      mesh.position.set(this.xAt(d[0]), (d[1] - this.yLo) / (this.yTop - this.yLo) * H, rowZ);
+      mesh.castShadow = true;
+      mesh.scale.setScalar(.001);
+      mesh.userData.pick = { kind: 'marker', series: s.name, name: '(' + d[0] + ', ' + d[1] + ')', value: d[1], color: s._color };
+      tween({ delay: 120 + i * 16, duration: 420, ease: easeOutBack, update: v => { mesh.scale.setScalar(Math.max(.001, v)); mesh.userData.baseScale = 1; } });
+      group.add(mesh);
+      this.pickables.push(mesh);
+    });
+    this.chartRoot.add(group);
+    this._registerLegend(s.name, s._color, group);
+  }
+
+  /* --- 涟漪散点图（effectScatter）--- */
+  _build_effectScatter(s) {
+    const m = Math.max(1, this.seriesList.filter(x => x._row !== undefined).length);
+    const rowZ = -D / 2 + (s._row + .5) * (D / m);
+    const group = new THREE.Group();
+    (s.data || []).forEach((d, i) => {
+      const px = this.xAt(d[0]), py = (d[1] - this.yLo) / (this.yTop - this.yLo) * H;
+      const mk = new THREE.Mesh(new THREE.SphereGeometry(.34, 20, 16),
+        new THREE.MeshStandardMaterial({ color: s._color, roughness: .35, metalness: .18, emissive: s._color, emissiveIntensity: .18 }));
+      mk.position.set(px, py, rowZ);
+      mk.scale.setScalar(.001);
+      mk.userData.pick = { kind: 'marker', series: s.name, name: '(' + d[0] + ', ' + d[1] + ')', value: d[1], color: s._color };
+      tween({ delay: 120 + i * 16, duration: 420, ease: easeOutBack, update: v => { mk.scale.setScalar(Math.max(.001, v)); mk.userData.baseScale = 1; } });
+      group.add(mk); this.pickables.push(mk);
+
+      const ring = new THREE.Mesh(new THREE.RingGeometry(.4, .5, 32),
+        new THREE.MeshBasicMaterial({ color: s._color, transparent: true, opacity: .55, side: THREE.DoubleSide, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(px, .06, rowZ);
+      ring.userData.isRing = true;
+      tween({ delay: 300 + i * 90, duration: 1500, loop: true, update: p => {
+        ring.scale.setScalar(.6 + p * 2.6);
+        ring.material.opacity = .55 * (1 - p);
+      } });
+      group.add(ring);
+    });
+    this.chartRoot.add(group);
+    this._registerLegend(s.name, s._color, group);
+  }
+
+  /* --- K 线图（candlestick）--- */
+  _build_candlestick(s) {
+    const cats = this.xCats || (s.data || []).map((_, i) => '' + i);
+    const n = cats.length;
+    const m = Math.max(1, this.seriesList.filter(x => x._row !== undefined).length);
+    const rowZ = -D / 2 + (s._row + .5) * (D / m);
+    const slot = W / n;
+    const bw = Math.min(.95, slot * .55), bd = Math.min(.95, (D / m) * .6);
+    const yW = v => (v - this.yLo) / (this.yTop - this.yLo) * H;
+    const group = new THREE.Group();
+    (s.data || []).forEach((c, i) => {
+      const o = c[0], cl = c[1], lo = c[2], hi = c[3];
+      const col = cl >= o ? '#ef232a' : '#14b143';
+      const y0 = yW(Math.min(o, cl)), y1 = yW(Math.max(o, cl));
+      const mat = new THREE.MeshStandardMaterial({ color: col, roughness: .45, metalness: .1, emissive: col, emissiveIntensity: 0 });
+      const body = new THREE.Mesh(BAR_GEO, mat);
+      body.position.set(this.xAt(i), y0, rowZ);
+      body.scale.set(bw, .001, bd);
+      body.castShadow = true;
+      body.userData.pick = { kind: 'candle', series: s.name, name: String(cats[i]), color: col,
+        html: '<div class="r"><span>开盘</span><b>' + fmt(o) + '</b></div><div class="r"><span>收盘</span><b>' + fmt(cl) + '</b></div><div class="r"><span>最低</span><b>' + fmt(lo) + '</b></div><div class="r"><span>最高</span><b>' + fmt(hi) + '</b></div>' };
+      tween({ delay: 90 + i * 26, duration: 560, update: p => { body.scale.y = Math.max(.001, (y1 - y0 + .05) * p); } });
+      group.add(body); this.pickables.push(body);
+
+      const wick = new THREE.Mesh(BAR_GEO, new THREE.MeshStandardMaterial({ color: col, roughness: .5, metalness: .1 }));
+      wick.position.set(this.xAt(i), yW(lo), rowZ);
+      wick.scale.set(.045, .001, .045);
+      wick.userData.wick = true;
+      tween({ delay: 90 + i * 26, duration: 700, update: p => { wick.scale.y = Math.max(.001, (yW(hi) - yW(lo)) * p); } });
+      group.add(wick);
+    });
+    this.chartRoot.add(group);
+    this._registerLegend(s.name, '#ef232a', group);
+  }
+
+  /* --- 盒须图（boxplot）--- */
+  _build_boxplot(s) {
+    const cats = this.xCats || (s.data || []).map((_, i) => '' + i);
+    const n = cats.length;
+    const m = Math.max(1, this.seriesList.filter(x => x._row !== undefined).length);
+    const rowZ = -D / 2 + (s._row + .5) * (D / m);
+    const slot = W / n;
+    const bw = Math.min(.95, slot * .5), bd = Math.min(.95, (D / m) * .6);
+    const yW = v => (v - this.yLo) / (this.yTop - this.yLo) * H;
+    const group = new THREE.Group();
+    (s.data || []).forEach((c, i) => {
+      const lo = c[0], q1 = c[1], med = c[2], q3 = c[3], hi = c[4];
+      const col = s._color;
+      const y0 = yW(q1), y1 = yW(q3);
+      const box = new THREE.Mesh(BAR_GEO, new THREE.MeshStandardMaterial({
+        color: col, roughness: .45, metalness: .1, transparent: true, opacity: .92, emissive: col, emissiveIntensity: 0 }));
+      box.position.set(this.xAt(i), y0, rowZ);
+      box.scale.set(bw, .001, bd);
+      box.castShadow = true;
+      box.userData.pick = { kind: 'box', series: s.name, name: String(cats[i]), color: col,
+        html: '<div class="r"><span>上限</span><b>' + fmt(hi) + '</b></div><div class="r"><span>上四分位</span><b>' + fmt(q3) + '</b></div><div class="r"><span>中位数</span><b>' + fmt(med) + '</b></div><div class="r"><span>下四分位</span><b>' + fmt(q1) + '</b></div><div class="r"><span>下限</span><b>' + fmt(lo) + '</b></div>' };
+      tween({ delay: 90 + i * 30, duration: 560, update: p => { box.scale.y = Math.max(.001, (y1 - y0 + .05) * p); } });
+      group.add(box); this.pickables.push(box);
+
+      const medBar = new THREE.Mesh(BAR_GEO, new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+      medBar.position.set(this.xAt(i) - bw * .5, yW(med) - .035, rowZ - bd * .5);
+      medBar.scale.set(bw * 1.04, .07, bd * 1.04);
+      medBar.userData.med = true;
+      group.add(medBar);
+
+      [[lo, q1], [q3, hi]].forEach(pr => {
+        const a = yW(pr[0]), b = yW(pr[1]);
+        const w = new THREE.Mesh(BAR_GEO, new THREE.MeshBasicMaterial({ color: '#8494ab' }));
+        w.position.set(this.xAt(i), Math.min(a, b), rowZ);
+        w.scale.set(.05, .001, .05);
+        w.userData.whisker = true;
+        tween({ delay: 90 + i * 30, duration: 700, update: p => { w.scale.y = Math.max(.001, Math.abs(b - a) * p); } });
+        group.add(w);
+      });
+    });
+    this.chartRoot.add(group);
+    this._registerLegend(s.name, s._color, group);
+  }
+
+  /* --- 热力图（heatmap）--- */
+  _build_heatmap(s) {
+    const xCats = this.xCats || [], yCats = this.yCats || [];
+    const nx = Math.max(1, xCats.length), ny = Math.max(1, yCats.length);
+    const cw = W / nx, cd = D / ny;
+    let mn = Infinity, mx = -Infinity;
+    (s.data || []).forEach(d => { mn = Math.min(mn, d[2]); mx = Math.max(mx, d[2]); });
+    if (mn === Infinity) { mn = 0; mx = 1; }
+    const span = (mx - mn) || 1;
+    const group = new THREE.Group();
+    (s.data || []).forEach((d, i) => {
+      const c = rampColor((d[2] - mn) / span);
+      const cell = new THREE.Mesh(new THREE.BoxGeometry(cw * .92, .16, cd * .92),
+        new THREE.MeshStandardMaterial({ color: c, roughness: .4, metalness: .05, emissive: c, emissiveIntensity: .12 }));
+      cell.position.set(this.xAt(d[0]), .08, -D / 2 + (d[1] + .5) * cd);
+      cell.scale.setScalar(.001);
+      cell.castShadow = true;
+      cell.userData.pick = { kind: 'heat', series: s.name, name: xCats[d[0]] + ' · ' + yCats[d[1]], value: d[2], color: '#' + c.getHexString() };
+      tween({ delay: 60 + i * 10, duration: 420, ease: easeOutBack, update: p => cell.scale.setScalar(Math.max(.001, p)) });
+      group.add(cell); this.pickables.push(cell);
+    });
+    this.chartRoot.add(group);
+    const vm = document.createElement('div');
+    vm.className = 'tec-vm';
+    vm.innerHTML = '<div class="v">' + trimNum(mx) + '</div><div class="bar" style="background:linear-gradient(to top,' + RAMP.join(',') + ')"></div><div class="v">' + trimNum(mn) + '</div>';
+    this.dom.appendChild(vm);
+  }
+
+  /* --- 象形柱图（pictorialBar，圆珠堆叠）--- */
+  _build_pictorialBar(s) {
+    const cats = this.xCats || (s.data || []).map((_, i) => '' + i);
+    const n = cats.length;
+    const m = Math.max(1, this.seriesList.filter(x => x._row !== undefined).length);
+    const rowZ = -D / 2 + (s._row + .5) * (D / m);
+    const slot = W / n;
+    const sr = Math.min(.34, slot * .3);
+    const ds = sr * 2 * .82;
+    const group = new THREE.Group();
+    const geo = new THREE.SphereGeometry(sr, 16, 12);
+    (s.data || []).forEach((val, i) => {
+      const h = Math.max(.05, (val - Math.max(this.yLo, 0)) / (this.yTop - Math.max(this.yLo, 0)) * H);
+      const count = Math.min(46, Math.max(1, Math.round(h / ds)));
+      for (let k = 0; k < count; k++) {
+        const b = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: s._color, roughness: .4, metalness: .15, emissive: s._color, emissiveIntensity: 0 }));
+        b.position.set(this.xAt(i), (k + .5) * h / count, rowZ);
+        b.scale.setScalar(.001);
+        b.castShadow = true;
+        b.userData.pick = { kind: 'pbar', series: s.name, name: String(cats[i]), value: val, color: s._color };
+        tween({ delay: 100 + (i * count + k) * 9, duration: 300, ease: easeOutBack, update: p => b.scale.setScalar(Math.max(.001, p)) });
+        group.add(b); this.pickables.push(b);
+      }
+    });
+    this.chartRoot.add(group);
+    this._registerLegend(s.name, s._color, group);
+  }
+
+  /* --- 漏斗图（funnel，3D 截锥堆叠）--- */
+  _build_funnel(s) {
+    const items = (s.data || []).slice().sort((a, b) => (b.value || 0) - (a.value || 0));
+    const n = items.length;
+    if (!n) return;
+    const R0 = 3.7, totalH = Math.min(6.4, 1.6 + n * .78), hL = totalH / n;
+    const vmax = items[0].value || 1;
+    const sumV = items.reduce((t, d) => t + (d.value || 0), 0) || 1;
+    const group = new THREE.Group();
+    items.forEach((d, i) => {
+      const rT = Math.max(.42, R0 * (d.value || 0) / vmax);
+      const rB = i < n - 1 ? Math.max(.42, R0 * (items[i + 1].value || 0) / vmax) : .42;
+      const col = PALETTE[i % PALETTE.length];
+      const yTop = totalH - i * hL, yBot = yTop - hL;
+      const side = new THREE.Mesh(
+        new THREE.CylinderGeometry(rT, rB, hL, 48, 1, true),
+        new THREE.MeshStandardMaterial({ color: col, roughness: .42, metalness: .1, transparent: true, opacity: .88, side: THREE.DoubleSide, emissive: col, emissiveIntensity: 0 }));
+      side.position.y = (yTop + yBot) / 2;
+      const cap = new THREE.Mesh(new THREE.CircleGeometry(rT, 48),
+        new THREE.MeshStandardMaterial({ color: col, roughness: .42, metalness: .1, transparent: true, opacity: .92 }));
+      cap.rotation.x = -Math.PI / 2;
+      cap.position.y = yTop - .002;
+      side.castShadow = true;
+      const pick = { kind: 'funnel', series: s.name, name: d.name, value: d.value,
+        percent: Math.round((d.value || 0) / sumV * 1000) / 10, color: col };
+      side.userData.pick = pick; cap.userData.pick = pick;
+      side.scale.setScalar(.001); cap.scale.setScalar(.001);
+      tween({ delay: i * 110, duration: 480, ease: easeOutBack, update: p => { side.scale.setScalar(Math.max(.001, p)); cap.scale.setScalar(Math.max(.001, p)); } });
+      this.pickables.push(side, cap);
+      const label = makeLabel(d.name + '  ' + fmt(d.value), { color: '#44536e', size: 30, worldH: .6 });
+      label.position.set(0, yTop - hL * .5, Math.max(rT, rB) + 1.15);
+      label.material.opacity = 0;
+      tween({ delay: 380 + i * 110, duration: 360, update: v => { label.material.opacity = v; } });
+      const holder = new THREE.Group();
+      holder.add(side); holder.add(cap); holder.add(label);
+      this.chartRoot.add(holder);
+      this._registerLegend(d.name, col, holder);
+    });
+  }
+
+  /* --- 仪表盘（gauge，平放 3D 表盘）--- */
+  _build_gauge(s) {
+    const d = (s.data || [])[0] || { value: 0, name: '' };
+    const maxV = s.max || 100;
+    const f = clamp((d.value || 0) / maxV, 0, 1);
+    const R = 3.3, tube = .3, sweep = Math.PI * 1.5;
+    const col = (s.itemStyle && s.itemStyle.color) || '#5470c6';
+    const group = new THREE.Group();
+
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(4.5, 4.8, .5, 64),
+      new THREE.MeshStandardMaterial({ color: '#eef1f7', roughness: .8, metalness: .05 }));
+    base.position.y = .25; base.receiveShadow = true;
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(4.7, 4.7, .18, 64),
+      new THREE.MeshStandardMaterial({ color: '#dde5f0', roughness: .7 }));
+    rim.position.y = .52;
+    group.add(base, rim);
+
+    const zones = (s.axisLine && s.axisLine.lineStyle && s.axisLine.lineStyle.color) ||
+      [[.35, '#67c23a'], [.7, '#fac858'], [1, '#ee6666']];
+    let f0 = 0;
+    zones.forEach(z => {
+      const f1 = z[0];
+      const a1 = Math.PI * 1.25 - sweep * f1;
+      const len = Math.max(.01, sweep * (f1 - f0));
+      const geo = new THREE.TorusGeometry(R, tube, 16, 48, len);
+      geo.rotateX(Math.PI / 2);
+      const seg = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: z[1], roughness: .35, metalness: .15 }));
+      seg.rotation.y = a1;
+      seg.position.y = .62;
+      seg.castShadow = true;
+      seg.userData.pick = { kind: 'gauge', series: s.name, name: d.name || '完成率', value: d.value, color: z[1] };
+      group.add(seg); this.pickables.push(seg);
+      f0 = f1;
+    });
+
+    const needle = new THREE.Group();
+    const nlen = 2.55;
+    const ng = new THREE.BoxGeometry(nlen, .14, .3);
+    ng.translate(nlen / 2, 0, 0);
+    const nMesh = new THREE.Mesh(ng, new THREE.MeshStandardMaterial({ color: '#44536e', roughness: .4, metalness: .3 }));
+    nMesh.castShadow = true;
+    needle.add(nMesh);
+    needle.position.y = .62;
+    needle.rotation.y = Math.PI * 1.25;
+    needle.userData.isNeedle = true;
+    group.add(needle);
+    const capBall = new THREE.Mesh(new THREE.SphereGeometry(.4, 18, 14),
+      new THREE.MeshStandardMaterial({ color: '#44536e', roughness: .35, metalness: .4 }));
+    capBall.position.y = .62;
+    capBall.userData.pick = { kind: 'gauge', series: s.name, name: d.name || '完成率', value: d.value, color: col };
+    group.add(capBall); this.pickables.push(capBall);
+    tween({ delay: 500, duration: 1200, update: p => { needle.rotation.y = Math.PI * 1.25 - sweep * f * p; } });
+
+    const valLabel = makeLabel(fmt(d.value), { color: '#22314d', size: 52, bold: true, worldH: 1.0 });
+    valLabel.position.set(0, 1.85, 0);
+    valLabel.material.opacity = 0;
+    tween({ delay: 900, duration: 500, update: v => { valLabel.material.opacity = v; } });
+    const nameLb = makeLabel(d.name || '', { color: '#7c8aa0', size: 26, worldH: .45 });
+    nameLb.position.set(0, 1.15, 0);
+    group.add(valLabel, nameLb);
+
+    this.chartRoot.add(group);
+    this._registerLegend(s.name, col, group);
+  }
+
+  /* --- 旭日图（sunburst，同心 3D 环）--- */
+  _build_sunburst(s) {
+    const topItems = s.data || [];
+    if (!topItems.length) return;
+    const root = { name: s.name || 'root', children: topItems };
+    const valOf = nd => nd.value !== undefined ? nd.value :
+      (nd.children || []).reduce((t, c) => t + valOf(c), 0);
+    const total = valOf(root) || 1;
+    let maxLv = 0;
+    (function measure(nd, d) { maxLv = Math.max(maxLv, d); (nd.children || []).forEach(c => measure(c, d + 1)); })(root, 0);
+    const R = 4.0, rw = R / Math.max(1, maxLv);
+    const HLV = [2.3, 1.7, 1.25, .95, .75, .6];
+    const group = new THREE.Group();
+    const self = this;
+    (function build(nd, a0, a1, lv, sibIdx, parentColor) {
+      if (lv === 0) {
+        (nd.children || []).forEach((c, i) => build(c, a0, a1, 1, i, '#5470c6'));
+        return;
+      }
+      const val = valOf(nd);
+      const color = lv === 1 ? PALETTE[sibIdx % PALETTE.length]
+        : '#' + new THREE.Color(parentColor).lerp(new THREE.Color('#1f2d40'), .22).getHexString();
+      const hL = HLV[Math.min(lv, HLV.length - 1)];
+      const rIn = rw * (lv - 1), rOut = rw * lv - (lv > 1 ? .06 : 0);
+      const mat = new THREE.MeshStandardMaterial({ color, roughness: .45, metalness: .1, emissive: color, emissiveIntensity: 0 });
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rOut, rOut, hL, 48, 1, false,
+        Math.PI - a1 + .01, Math.max(.012, (a1 - a0) - .02)), mat);
+      mesh.position.y = hL / 2;
+      mesh.castShadow = true;
+      mesh.userData.pick = { kind: 'sun', series: s.name, name: nd.name, value: val,
+        percent: Math.round(val / total * 1000) / 10, color };
+      mesh.scale.y = .001;
+      tween({ delay: lv * 240, duration: 620, update: p => { mesh.scale.y = Math.max(.001, p); } });
+      group.add(mesh);
+      self.pickables.push(mesh);
+      if (lv === 1) {
+        const ang = Math.PI - (a0 + a1) / 2;
+        const label = makeLabel(nd.name, { color: '#44536e', size: 30, worldH: .58 });
+        label.position.set((rOut + .9) * Math.sin(ang), hL / 2 + .55, (rOut + .9) * Math.cos(ang));
+        label.material.opacity = 0;
+        tween({ delay: 700, duration: 380, update: v => { label.material.opacity = v; } });
+        group.add(label);
+      }
+      const sum = (nd.children || []).reduce((t, c) => t + valOf(c), 0) || 1;
+      let cur = a0;
+      (nd.children || []).forEach((c, i) => {
+        const span = (a1 - a0) * valOf(c) / sum;
+        build(c, cur, cur + span, lv + 1, i, color);
+        cur += span;
+      });
+    })(root, 0, Math.PI * 2, 0, 0, '#5470c6');
+    this.chartRoot.add(group);
+  }
+
+  /* --- 桑基图（sankey）--- */
+  _build_sankey(s) {
+    const nodes = (Array.isArray(s.data) ? s.data : (s.data && s.data.nodes) || [])
+      .map(n => Object.assign({}, n));
+    if (!nodes.length) return;
+    const byName = {};
+    nodes.forEach((n, i) => { byName[n.name] = i; });
+    const L = (s.links || (s.data && s.data.links) || []).map(lk => ({
+      s: typeof lk.source === 'number' ? lk.source : byName[lk.source],
+      t: typeof lk.target === 'number' ? lk.target : byName[lk.target],
+      v: lk.value || 0,
+    })).filter(lk => lk.s !== undefined && lk.t !== undefined && lk.s !== lk.t);
+
+    const depth = nodes.map(() => 0);
+    for (let it = 0; it < nodes.length; it++) L.forEach(lk => { depth[lk.t] = Math.max(depth[lk.t], depth[lk.s] + 1); });
+    const cols = Math.max.apply(null, depth) + 1;
+    const outV = nodes.map(() => 0), inV = nodes.map(() => 0);
+    L.forEach(lk => { outV[lk.s] += lk.v; inV[lk.t] += lk.v; });
+    const nVal = nodes.map((_, i) => Math.max(outV[i], inV[i]) || 1);
+    const maxNV = Math.max.apply(null, nVal);
+
+    const unitH = 3.4, gap = .5;
+    const rawH = nVal.map(v => v / maxNV * unitH);
+    const kScale = [];
+    for (let c = 0; c < cols; c++) {
+      const ids = nodes.map((_, i) => i).filter(i => depth[i] === c);
+      const tot = ids.reduce((t, i) => t + rawH[i], 0) + Math.max(0, ids.length - 1) * gap;
+      kScale.push(Math.min(1, (D * .88) / (tot || 1)));
+    }
+    const nodeX = nodes.map((_, i) => -W / 2 + 1.1 + depth[i] * ((W - 2.2) / Math.max(1, cols - 1)));
+    const nodeY = nodes.map(() => 0), nodeH = nodes.map(() => 0);
+    for (let c = 0; c < cols; c++) {
+      const ids = nodes.map((_, i) => i).filter(i => depth[i] === c);
+      const heights = ids.map(i => rawH[i] * kScale[c]);
+      const tot = heights.reduce((t, h) => t + h, 0) + Math.max(0, ids.length - 1) * gap;
+      let cursor = tot / 2;
+      ids.forEach((id, j) => {
+        nodeH[id] = heights[j];
+        nodeY[id] = cursor - heights[j] / 2;
+        cursor -= heights[j] + gap;
+      });
+    }
+
+    const group = new THREE.Group();
+    const maxLinkV = Math.max.apply(null, L.map(lk => lk.v).concat([1]));
+    const outOff = nodes.map(() => 0), inOff = nodes.map(() => 0);
+    nodes.forEach((nd, i) => {
+      const col = (nd.itemStyle && nd.itemStyle.color) || PALETTE[depth[i] % PALETTE.length];
+      nd._color = col;
+      const mesh = new THREE.Mesh(BAR_GEO, new THREE.MeshStandardMaterial({ color: col, roughness: .45, metalness: .1, emissive: col, emissiveIntensity: 0 }));
+      mesh.position.set(nodeX[i] - .3, nodeY[i] - nodeH[i] / 2, 0);
+      mesh.scale.set(.6, .001, .6);
+      mesh.castShadow = true;
+      mesh.userData.pick = { kind: 'snode', series: s.name, name: nd.name, value: nVal[i], color: col };
+      tween({ delay: 120 + i * 40, duration: 500, update: p => { mesh.scale.y = Math.max(.001, nodeH[i] * p); } });
+      group.add(mesh); this.pickables.push(mesh);
+    });
+    L.forEach((lk, i) => {
+      const th = clamp(lk.v / maxLinkV * .8, .12, .9);
+      const yS = nodeY[lk.s] + nodeH[lk.s] / 2 - outOff[lk.s] - th / 2;
+      const yT = nodeY[lk.t] + nodeH[lk.t] / 2 - inOff[lk.t] - th / 2;
+      outOff[lk.s] += th; inOff[lk.t] += th;
+      const xS = nodeX[lk.s], xT = nodeX[lk.t];
+      const mid = (xS + xT) / 2;
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(xS, yS, 0), new THREE.Vector3(mid, yS, 0),
+        new THREE.Vector3(mid, yT, 0), new THREE.Vector3(xT, yT, 0),
+      ]);
+      const geo = new THREE.TubeGeometry(curve, 28, th / 2, 10, false);
+      geo.setDrawRange(0, 0);
+      const col = nodes[lk.s]._color || '#5470c6';
+      const tube = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, roughness: .5, transparent: true, opacity: .55 }));
+      const tot = geo.index.count;
+      tween({ delay: 300 + i * 50, duration: 800, update: p => geo.setDrawRange(0, Math.floor(tot * p)) });
+      tube.userData.pick = { kind: 'slink', series: s.name, name: nodes[lk.s].name + ' → ' + nodes[lk.t].name,
+        html: '<div class="r"><span>流量</span><b>' + fmt(lk.v) + '</b></div>', color: col };
+      group.add(tube); this.pickables.push(tube);
+    });
+    this.chartRoot.add(group);
+  }
+
+  /* --- 关系图（graph）--- */
+  _build_graph(s) {
+    const nodes = Array.isArray(s.data) ? s.data : (s.data && s.data.nodes) || [];
+    const links = s.links || (s.data && s.data.links) || [];
+    const cats = s.categories || [];
+    const n = nodes.length;
+    if (!n) return;
+    const hasXY = nodes.every(nd => typeof nd.x === 'number' && typeof nd.y === 'number');
+    nodes.forEach((nd, i) => {
+      if (hasXY) { nd._x = (nd.x - .5) * (W * .72); nd._z = (.5 - nd.y) * (D * .8); }
+      else { const a = i / n * Math.PI * 2 - Math.PI / 2; nd._x = 4.2 * Math.cos(a); nd._z = 3.1 * Math.sin(a); }
+    });
+    const catColor = ci => (cats[ci] && cats[ci].itemStyle && cats[ci].itemStyle.color) || PALETTE[(ci || 0) % PALETTE.length];
+    const catGroups = cats.length ? cats.map(() => new THREE.Group()) : [new THREE.Group()];
+    const groupOf = ci => cats.length ? catGroups[ci || 0] : catGroups[0];
+
+    const nodeMeshes = nodes.map((nd, i) => {
+      const col = (nd.itemStyle && nd.itemStyle.color) || catColor(nd.category || 0);
+      nd._color = col;
+      const r = nd.symbolSize ? clamp(Math.sqrt(nd.symbolSize) * .16, .22, .9) : .42;
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 16),
+        new THREE.MeshStandardMaterial({ color: col, roughness: .4, metalness: .15, emissive: col, emissiveIntensity: 0 }));
+      mesh.position.set(nd._x, 1.1, nd._z);
+      mesh.scale.setScalar(.001);
+      mesh.userData.pick = { kind: 'gnode', series: s.name, name: nd.name, value: nd.value !== undefined ? nd.value : '', color: col };
+      tween({ delay: 150 + i * 40, duration: 420, ease: easeOutBack, update: v => { mesh.scale.setScalar(Math.max(.001, v)); mesh.userData.baseScale = 1; } });
+      groupOf(nd.category || 0).add(mesh);
+      this.pickables.push(mesh);
+      return mesh;
+    });
+    const idxOf = ref => typeof ref === 'number' ? ref : nodes.findIndex(x => x.name === ref);
+    links.forEach((lk, i) => {
+      const a = idxOf(lk.source), b = idxOf(lk.target);
+      if (a < 0 || b < 0 || a === b) return;
+      const col = nodes[a]._color || '#b7c3d6';
+      const tube = tubeBetween(nodeMeshes[a].position.clone(), nodeMeshes[b].position.clone(), .035,
+        new THREE.MeshStandardMaterial({ color: col, roughness: .55, transparent: true, opacity: .5 }));
+      tube.userData.pick = { kind: 'gedge', series: s.name, name: nodes[a].name + ' — ' + nodes[b].name,
+        html: lk.value !== undefined ? '<div class="r"><span>权重</span><b>' + fmt(lk.value) + '</b></div>' : '', color: col };
+      groupOf(nodes[a].category || 0).add(tube);
+      this.pickables.push(tube);
+    });
+    catGroups.forEach((g, i) => {
+      this.chartRoot.add(g);
+      this._registerLegend(cats.length ? (cats[i].name || '分类' + (i + 1)) : s.name,
+        catColor(i), g);
+    });
+  }
+
+  /* --- 树图（tree，径向布局）--- */
+  _build_tree(s) {
+    const root = (s.data || [])[0];
+    if (!root) return;
+    const leaves = nd => (nd.children && nd.children.length) ? nd.children.reduce((t, c) => t + leaves(c), 0) : 1;
+    let maxD = 0;
+    (function md(nd, d) { maxD = Math.max(maxD, d); (nd.children || []).forEach(c => md(c, d + 1)); })(root, 0);
+    const rStep = maxD ? 4.3 / maxD : 4.3;
+    const group = new THREE.Group();
+    const self = this;
+    (function place(nd, a0, a1, d) {
+      if (nd.children && nd.children.length) {
+        let cur = a0;
+        const tot = leaves(nd);
+        nd.children.forEach(c => { const span = (a1 - a0) * leaves(c) / tot; place(c, cur, cur + span, d + 1); cur += span; });
+        nd._a = nd.children.reduce((t, c) => t + c._a, 0) / nd.children.length;
+      } else nd._a = (a0 + a1) / 2;
+      nd._d = d;
+    })(root, 0, Math.PI * 2, 0);
+    (function build(nd, parentMesh, branchColor) {
+      const col = branchColor || '#5470c6';
+      const pos = new THREE.Vector3(nd._d * rStep * Math.sin(nd._a), .3, nd._d * rStep * Math.cos(nd._a));
+      const r = clamp(.55 - nd._d * .09, .2, .55);
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14),
+        new THREE.MeshStandardMaterial({ color: col, roughness: .4, metalness: .15, emissive: col, emissiveIntensity: 0 }));
+      mesh.position.copy(pos);
+      mesh.scale.setScalar(.001);
+      mesh.userData.pick = { kind: 'tnode', series: s.name, name: nd.name, value: nd.value !== undefined ? nd.value : '', color: col };
+      tween({ delay: 120 + nd._d * 220, duration: 400, ease: easeOutBack, update: v => { mesh.scale.setScalar(Math.max(.001, v)); mesh.userData.baseScale = 1; } });
+      group.add(mesh); self.pickables.push(mesh);
+      if (parentMesh) {
+        const tube = tubeBetween(parentMesh.position.clone(), pos.clone(), .035,
+          new THREE.MeshStandardMaterial({ color: '#a9b8cd', roughness: .6 }));
+        tube.userData.pick = { kind: 'tedge', series: s.name, name: '', value: '', color: '#a9b8cd' };
+        group.add(tube); self.pickables.push(tube);
+      }
+      nd._mesh = mesh;
+      (nd.children || []).forEach((c, ci) => build(c, mesh, nd._d === 0 ? PALETTE[ci % PALETTE.length] : branchColor));
+    })(root, null, null);
+    this.chartRoot.add(group);
+    this._registerLegend(s.name, '#5470c6', group);
+  }
+
+  /* --- 矩形树图（treemap，squarify + 3D 挤出）--- */
+  _build_treemap(s) {
+    const items = (s.data || []).slice().sort((a, b) => (b.value || 0) - (a.value || 0));
+    if (!items.length) return;
+    const Wr = W * .84, Dr = D * .84;
+    const rects = squarify(items.map(d => d.value || 0), Wr, Dr);
+    const maxV = items[0].value || 1;
+    const sumV = items.reduce((t, d) => t + (d.value || 0), 0) || 1;
+    const group = new THREE.Group();
+    items.forEach((d, i) => {
+      const r = rects[i]; if (!r) return;
+      const col = (d.itemStyle && d.itemStyle.color) || PALETTE[i % PALETTE.length];
+      const hgt = .9 + (d.value || 0) / maxV * 3.1;
+      const mesh = new THREE.Mesh(BAR_GEO, new THREE.MeshStandardMaterial({ color: col, roughness: .5, metalness: .08, emissive: col, emissiveIntensity: 0 }));
+      mesh.position.set(-Wr / 2 + r.x + r.w / 2, 0, -Dr / 2 + r.z + r.d / 2);
+      mesh.scale.set(Math.max(.05, r.w * .96), .001, Math.max(.05, r.d * .96));
+      mesh.castShadow = true;
+      mesh.userData.pick = { kind: 'tm', series: s.name, name: d.name, value: d.value,
+        percent: Math.round((d.value || 0) / sumV * 1000) / 10, color: col };
+      tween({ delay: 100 + i * 70, duration: 560, update: p => { mesh.scale.y = Math.max(.001, hgt * p); } });
+      group.add(mesh); this.pickables.push(mesh);
+      const label = makeLabel(d.name + ' ' + fmt(d.value), { color: '#3c4b63', size: 28, worldH: .5, bold: true });
+      label.position.set(-Wr / 2 + r.x + r.w / 2, hgt + .3, -Dr / 2 + r.z + r.d / 2);
+      label.material.opacity = 0;
+      tween({ delay: 480 + i * 70, duration: 360, update: v => { label.material.opacity = v; } });
+      group.add(label);
+    });
+    this.chartRoot.add(group);
+    this._registerLegend(s.name, '#5470c6', group);
+  }
+
+  /* --- 路径图（lines，3D 飞线弧）--- */
+  _build_lines(s) {
+    const group = new THREE.Group();
+    const allPts = [];
+    (s.data || []).forEach(d => { allPts.push(d.coords[0], d.coords[1]); });
+    if (!allPts.length) return;
+    let lnx = Infinity, lxx = -Infinity, lnz = Infinity, lxz = -Infinity;
+    allPts.forEach(p => { lnx = Math.min(lnx, p[0]); lxx = Math.max(lxx, p[0]); lnz = Math.min(lnz, p[1]); lxz = Math.max(lxz, p[1]); });
+    const mx = v => -W / 2 + 1 + (v - lnx) / ((lxx - lnx) || 1) * (W - 2);
+    const mz = v => -D / 2 + .9 + (v - lnz) / ((lxz - lnz) || 1) * (D - 1.8);
+    (s.data || []).forEach((d, i) => {
+      const A = new THREE.Vector3(mx(d.coords[0][0]), .18, mz(d.coords[0][1]));
+      const B = new THREE.Vector3(mx(d.coords[1][0]), .18, mz(d.coords[1][1]));
+      const col = (d.itemStyle && d.itemStyle.color) || PALETTE[i % PALETTE.length];
+      const mid = A.clone().lerp(B, .5);
+      mid.y = .18 + clamp(A.distanceTo(B) * .5, 1.4, 4.4);
+      const geo = new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(A, mid, B), 40, .07, 10, false);
+      geo.setDrawRange(0, 0);
+      const tube = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, roughness: .4, metalness: .1, transparent: true, opacity: .9, emissive: col, emissiveIntensity: .12 }));
+      const tot = geo.index.count;
+      tween({ delay: 150 + i * 160, duration: 900, update: p => geo.setDrawRange(0, Math.floor(tot * p)) });
+      tube.castShadow = true;
+      tube.userData.pick = { kind: 'fl', series: s.name, name: d.name || (d.coords[0].join(', ') + ' → ' + d.coords[1].join(', ')),
+        html: d.value !== undefined ? '<div class="r"><span>数值</span><b>' + fmt(d.value) + '</b></div>' : '', color: col };
+      group.add(tube); this.pickables.push(tube);
+      [A, B].forEach((P, k) => {
+        const mk = new THREE.Mesh(k === 0 ? new THREE.SphereGeometry(.22, 14, 12) : new THREE.SphereGeometry(.14, 12, 10),
+          new THREE.MeshStandardMaterial({ color: '#8b9bb1', roughness: .5 }));
+        mk.position.copy(P);
+        mk.scale.setScalar(.001);
+        mk.userData.pick = { kind: 'flpt', series: s.name, name: '坐标 ' + d.coords[k].join(', '), value: '', color: '#8b9bb1' };
+        tween({ delay: 120 + i * 160, duration: 300, ease: easeOutBack, update: v => { mk.scale.setScalar(Math.max(.001, v)); mk.userData.baseScale = 1; } });
+        group.add(mk); this.pickables.push(mk);
+      });
+    });
+    const grid = [];
+    for (let i = 0; i <= 5; i++) { const x = -W / 2 + i * W / 5; grid.push(x, 0, -D / 2, x, 0, D / 2); }
+    for (let j = 0; j <= 3; j++) { const z = -D / 2 + j * D / 3; grid.push(-W / 2, 0, z, W / 2, 0, z); }
+    const gGeo = new THREE.BufferGeometry();
+    gGeo.setAttribute('position', new THREE.Float32BufferAttribute(grid, 3));
+    group.add(new THREE.LineSegments(gGeo, new THREE.LineBasicMaterial({ color: 0xd8e0ec })));
+    this.chartRoot.add(group);
+    this._registerLegend(s.name, s._color, group);
+  }
+
+  /* --- 主题河流（themeRiver，堆叠色带）--- */
+  _build_themeRiver(s) {
+    const river = s._river || { times: [], names: [], matrix: {} };
+    const times = river.times, names = river.names, matrix = river.matrix;
+    if (!times.length || !names.length) return;
+    const n = times.length;
+    const maxTotal = Math.max.apply(null, s.data.concat([1]));
+    const scale = (H * .72) / maxTotal;
+    const cum = times.map(() => 0);
+    const group = new THREE.Group();
+    names.forEach((nm, si) => {
+      const col = PALETTE[si % PALETTE.length];
+      const base = [], top = [];
+      times.forEach((t, i) => { base.push(cum[i]); top.push(cum[i] + (matrix[nm][i] || 0) * scale); cum[i] = top[i]; });
+      const posArr = [], idxArr = [];
+      times.forEach((t, i) => {
+        const x = this.xAt(i);
+        posArr.push(x, base[i], 0, x, Math.max(base[i] + .02, top[i]), 0);
+      });
+      for (let i = 0; i < n - 1; i++) {
+        const a = i * 2;
+        idxArr.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
+      geo.setIndex(idxArr);
+      geo.computeVertexNormals();
+      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, roughness: .5, metalness: .08, transparent: true, opacity: .82, side: THREE.DoubleSide, emissive: col, emissiveIntensity: .06 }));
+      const eGeo = new THREE.BufferGeometry();
+      eGeo.setAttribute('position', new THREE.Float32BufferAttribute(
+        top.flatMap((y, i) => [this.xAt(i), y + .012, 0]), 3));
+      const edge = new THREE.Line(eGeo, new THREE.LineBasicMaterial({ color: col }));
+      const holder = new THREE.Group();
+      holder.add(mesh); holder.add(edge);
+      tween({ delay: 120 + si * 160, duration: 800, update: p => { holder.scale.y = Math.max(.001, p); } });
+      group.add(holder);
+      times.forEach((t, i) => {
+        const mk = new THREE.Mesh(MARK_GEO, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+        mk.position.set(this.xAt(i), (base[i] + top[i]) / 2, 0);
+        mk.userData.pick = { kind: 'river', series: nm, name: String(t), value: matrix[nm][i] || 0, color: col };
+        group.add(mk); this.pickables.push(mk);
+      });
+      this._registerLegend(nm, col, holder);
+    });
+    this.chartRoot.add(group);
+  }
+
+  /* --- 平行坐标（parallel）--- */
+  _build_parallel(s) {
+    const axes = (this.option.parallelAxis || []).filter(a => a && !a.hidden);
+    const rows = s.data || [];
+    if (!axes.length || !rows.length) return;
+    const n = axes.length;
+    const x0 = -W / 2 + 1.4, x1 = W / 2 - 1.4;
+    const xAt = i => n > 1 ? x0 + i * (x1 - x0) / (n - 1) : 0;
+    const topY = H * .88;
+    const group = new THREE.Group();
+
+    const axLine = [];
+    axes.forEach((a, i) => {
+      axLine.push(xAt(i), 0, 0, xAt(i), topY, 0);
+      const sp = makeLabel(a.name || ('维度' + (a.dim !== undefined ? a.dim : i)), { color: '#5a6b82', size: 28, worldH: .55 });
+      sp.position.set(xAt(i), topY + .5, 0);
+      group.add(sp);
+    });
+    axLine.push(x0, 0, 0, x1, 0, 0);
+    const gGeo = new THREE.BufferGeometry();
+    gGeo.setAttribute('position', new THREE.Float32BufferAttribute(axLine, 3));
+    group.add(new THREE.LineSegments(gGeo, new THREE.LineBasicMaterial({ color: 0xaab7cc })));
+
+    const ranges = axes.map((a, i) => {
+      const di = a.dim !== undefined ? a.dim : i;
+      let mn = Infinity, mx = -Infinity;
+      rows.forEach(r => { mn = Math.min(mn, r[di]); mx = Math.max(mx, r[di]); });
+      return { di, mn, mx };
+    });
+    rows.forEach((r, ri) => {
+      const col = PALETTE[ri % PALETTE.length];
+      const pts = ranges.map((rg, i) =>
+        new THREE.Vector3(xAt(i), (r[rg.di] - rg.mn) / ((rg.mx - rg.mn) || 1) * topY, 0));
+      const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 60, .055, 10, false);
+      geo.setDrawRange(0, 0);
+      const tube = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, roughness: .4, metalness: .12, transparent: true, opacity: .92 }));
+      const tot = geo.index.count;
+      tween({ delay: 150 + ri * 130, duration: 950, update: p => geo.setDrawRange(0, Math.floor(tot * p)) });
+      tube.castShadow = true;
+      tube.userData.pick = { kind: 'pline', series: s.name, name: '记录 ' + (ri + 1),
+        html: ranges.map((rg, i) => '<div class="r"><span>' + esc(axes[i].name || '维度' + i) + '</span><b>' + fmt(r[rg.di]) + '</b></div>').join(''), color: col };
+      group.add(tube); this.pickables.push(tube);
+    });
+    this.chartRoot.add(group);
+  }
+
+  /* --- 雷达图（radar，3D 立体网面）--- */
+  _build_radar(s) {
+    const radarOpt = Array.isArray(this.option.radar) ? this.option.radar[0] : (this.option.radar || {});
+    const inds = radarOpt.indicator || [];
+    if (!inds.length) return;
+    const n = inds.length;
+    const R = 4.2, Rh = 3.0, split = radarOpt.splitNumber || 4;
+    const dir = i => { const a = i * Math.PI * 2 / n; return new THREE.Vector3(Math.sin(a), 0, -Math.cos(a)); };
+    const group = new THREE.Group();
+
+    for (let k = 1; k <= split; k++) {
+      const rr = R * k / split;
+      const pos = [];
+      for (let i = 0; i <= n; i++) { const dv = dir(i % n); pos.push(rr * dv.x, .04, rr * dv.z); }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      const loop = new THREE.Line(g, new THREE.LineBasicMaterial({ color: k === split ? 0xaab7cc : 0xd5dfeb }));
+      loop.userData.radarGrid = true;
+      group.add(loop);
+    }
+    const spokePos = [];
+    for (let i = 0; i < n; i++) { const dv = dir(i); spokePos.push(0, .04, 0, R * dv.x, .04, R * dv.z); }
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute(spokePos, 3));
+    group.add(new THREE.LineSegments(sg, new THREE.LineBasicMaterial({ color: 0xd5dfeb })));
+    inds.forEach((ind, i) => {
+      const dv = dir(i);
+      const sp = makeLabel(ind.name, { color: '#5a6b82', size: 28, worldH: .56 });
+      sp.position.set(R * dv.x * 1.18, .5, R * dv.z * 1.18);
+      group.add(sp);
+    });
+
+    (Array.isArray(s.data) ? s.data : [s.data]).forEach((item, si) => {
+      const vals = item.value || [];
+      const col = (item.itemStyle && item.itemStyle.color) || PALETTE[si % PALETTE.length];
+      const topPts = [];
+      for (let i = 0; i < n; i++) {
+        const dv = dir(i);
+        const mx = inds[i].max || 100;
+        const t = clamp((vals[i] || 0) / mx, 0, 1);
+        topPts.push(new THREE.Vector3(R * t * dv.x, .15 + t * Rh, R * t * dv.z));
+      }
+      const posArr = [0, .15, 0];
+      topPts.forEach(p => posArr.push(p.x, p.y, p.z));
+      const idx = [];
+      for (let i = 0; i < n; i++) idx.push(0, 1 + i, 1 + (i + 1) % n);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
+      geo.setIndex(idx);
+      geo.computeVertexNormals();
+      const fill = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, roughness: .5, metalness: .08, transparent: true, opacity: .68, side: THREE.DoubleSide, emissive: col, emissiveIntensity: .08 }));
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(topPts, true), 96, .07, 10, true),
+        new THREE.MeshStandardMaterial({ color: col, roughness: .35, metalness: .15, emissive: col, emissiveIntensity: .1 }));
+      const holder = new THREE.Group();
+      holder.add(fill); holder.add(tube);
+      tween({ delay: 200 + si * 220, duration: 900, update: p => { holder.scale.y = Math.max(.001, p); } });
+      group.add(holder);
+      const areaPick = { kind: 'radar', series: item.name || s.name, name: (item.name || '系列') + ' 面积', value: '', color: col };
+      fill.userData.pick = areaPick;
+      tube.userData.pick = areaPick;
+      this.pickables.push(fill, tube);
+      topPts.forEach((p, i) => {
+        const mk = new THREE.Mesh(MARK_GEO, new THREE.MeshStandardMaterial({ color: col, roughness: .35 }));
+        mk.position.copy(p);
+        mk.scale.setScalar(.001);
+        mk.userData.pick = { kind: 'radarpt', series: item.name || s.name, name: inds[i].name, value: vals[i], color: col };
+        tween({ delay: 400 + si * 200 + i * 60, duration: 300, ease: easeOutBack, update: v => { mk.scale.setScalar(Math.max(.001, v)); mk.userData.baseScale = 1; } });
+        group.add(mk); this.pickables.push(mk);
+      });
+      this._registerLegend(item.name || ('系列' + (si + 1)), col, holder);
+    });
+    this.chartRoot.add(group);
+  }
+
+  /* --- 3D 曲面图（扩展类型） --- */
+  _build_surface(s) {
+    const dom = s.domain || [-3, 3];
+    const eq = s.equation;
+    const group = new THREE.Group();
+    const geo = new THREE.PlaneGeometry(W, D, 72, 48);
+    geo.rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position;
+    const heights = new Float32Array(pos.count);
+    let mn = Infinity, mx = -Infinity;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i);
+      const u = dom[0] + (x + W / 2) / W * (dom[1] - dom[0]);
+      const v = dom[0] + (z + D / 2) / D * (dom[1] - dom[0]);
+      const hgt = eq(u, v);
+      heights[i] = hgt;
+      mn = Math.min(mn, hgt); mx = Math.max(mx, hgt);
+    }
+    const colors = new Float32Array(pos.count * 3);
+    const span = (mx - mn) || 1;
+    for (let i = 0; i < pos.count; i++) {
+      pos.setY(i, heights[i]);
+      const c = rampColor((heights[i] - mn) / span);
+      colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      vertexColors: true, roughness: .52, metalness: .1, side: THREE.DoubleSide,
+    }));
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    const self = this;
+    mesh.userData.pick = { kind: 'surface', series: s.name, name: '高度', value: '', color: '#1fa2a8' };
+    self.pickables.push(mesh);
+    group.add(mesh);
+    group.scale.y = .001;
+    tween({ delay: 80, duration: 950, update: p => { group.scale.y = Math.max(.001, p); } });
+    this.chartRoot.add(group);
+    this._registerLegend(s.name, '#1fa2a8', group);
+
+    /* visualMap 覆盖层 */
+    const vm = document.createElement('div');
+    vm.className = 'tec-vm';
+    vm.innerHTML = '<div class="v">' + trimNum(mx) + '</div>' +
+      '<div class="bar" style="background:linear-gradient(to top,' + RAMP.join(',') + ')"></div>' +
+      '<div class="v">' + trimNum(mn) + '</div>';
+    this.dom.appendChild(vm);
+  }
+}
+
+/* ---------------- 导出 ---------------- */
+window.ThreeECharts = {
+  version: '1.0.0',
+  init(dom) {
+    const el = typeof dom === 'string' ? document.querySelector(dom) : dom;
+    try {
+      return new ThreeChart(el);
+    } catch (e) {
+      if (console.warn) console.warn('ThreeECharts: WebGL 初始化失败 ->', e && e.message);
+      el.innerHTML = '<div class="tec-fallback">当前浏览器或环境不支持 WebGL，无法渲染 3D 图表。<br>请改用支持硬件加速 WebGL 的浏览器（Chrome / Edge / Firefox / Safari）打开本页面。</div>';
+      return { setOption() {}, resize() {}, dispose() {} };
+    }
+  },
+};
+
+/* =====================================================================
+ * 演示页面
+ * ===================================================================== */
+const MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+const DAYS = ['周一','周二','周三','周四','周五','周六','周日'];
+
+const DEMOS = [
+  /* ===== 基础图表 ===== */
+  {
+    key: 'bar', group: '基础', label: '3D 柱状图',
+    option: {
+      title: { text: '月度蒸发量与降水量', subtext: 'series.type = "bar" · 双系列分组' },
+      tooltip: {},
+      legend: {},
+      xAxis: { type: 'category', data: MONTHS },
+      yAxis: { type: 'value', name: '单位 ml' },
+      series: [
+        { name: '蒸发量', type: 'bar', data: [2.0, 4.9, 7.0, 23.2, 25.6, 76.7, 135.6, 162.2, 32.6, 20.0, 6.4, 3.3] },
+        { name: '降水量', type: 'bar', data: [2.6, 5.9, 9.0, 26.4, 28.7, 70.7, 175.6, 182.2, 48.7, 18.8, 6.0, 2.3] },
+      ],
+    },
+  },
+  {
+    key: 'line', group: '基础', label: '3D 折线图',
+    option: {
+      title: { text: '一周气温变化', subtext: 'series.type = "line" · 管道渲染 + 数据点标记' },
+      tooltip: {},
+      legend: {},
+      xAxis: { type: 'category', data: DAYS },
+      yAxis: { type: 'value', name: '°C' },
+      series: [
+        { name: '最高气温', type: 'line', data: [11, 13, 15, 14, 12, 13, 10], smooth: true },
+        { name: '最低气温', type: 'line', data: [6, 5, 7, 8, 7, 7, 5], smooth: true },
+      ],
+    },
+  },
+  {
+    key: 'pie', group: '基础', label: '3D 饼图',
+    option: {
+      title: { text: '某站点用户来源', subtext: 'series.type = "pie" · 悬停抬起扇区' },
+      tooltip: {},
+      legend: {},
+      series: [{
+        name: '访问来源', type: 'pie',
+        data: [
+          { value: 335, name: '直接访问' },
+          { value: 310, name: '邮件营销' },
+          { value: 234, name: '联盟广告' },
+          { value: 135, name: '视频广告' },
+          { value: 1548, name: '搜索引擎' },
+        ],
+      }],
+    },
+  },
+  {
+    key: 'scatter', group: '基础', label: '3D 散点图',
+    option: {
+      title: { text: '身高体重分布', subtext: 'series.type = "scatter" · 数值型 x 轴' },
+      tooltip: {},
+      legend: {},
+      xAxis: { type: 'value', name: '身高 cm', min: 150, max: 200 },
+      yAxis: { type: 'value', name: '体重 kg' },
+      series: [
+        { name: '女性', type: 'scatter', data: [[161.2,51.6],[167.5,59.0],[159.5,47.6],[157.0,45.1],[155.8,44.0],[170.0,59.0],[159.1,47.6],[166.0,55.2],[176.5,66.8],[162.6,58.8],[157.5,56.0],[170.2,59.7]] },
+        { name: '男性', type: 'scatter', data: [[174.0,65.6],[175.3,71.8],[193.5,80.7],[186.5,78.7],[187.9,75.9],[180.3,70.5],[185.5,76.8],[179.5,66.5],[184.2,72.6],[177.8,68.1],[182.6,73.0],[187.2,80.0]] },
+      ],
+    },
+  },
+  {
+    key: 'effectScatter', group: '基础', label: '涟漪散点图',
+    option: {
+      title: { text: '涟漪散点图', subtext: 'series.type = "effectScatter" · 无限循环涟漪动画' },
+      tooltip: {},
+      legend: {},
+      xAxis: { type: 'value', name: 'x', min: 0, max: 11 },
+      yAxis: { type: 'value', name: 'y' },
+      series: [{ name: '样本', type: 'effectScatter',
+        data: [[1,6],[2,9],[3,15],[4,12],[5,20],[6,17],[7,25],[8,22],[9,28],[10,24]] }],
+    },
+  },
+  {
+    key: 'mixed', group: '基础', label: '柱线混合',
+    option: {
+      title: { text: '销售计划与实际完成', subtext: 'bar + line 混合在同一坐标系' },
+      tooltip: {},
+      legend: {},
+      xAxis: { type: 'category', data: MONTHS },
+      yAxis: { type: 'value', name: '万元' },
+      series: [
+        { name: '计划完成', type: 'bar', data: [120,180,150,220,260,300,280,320,300,260,210,160] },
+        { name: '实际完成', type: 'line', data: [110,172,158,205,255,312,270,330,290,250,200,150] },
+      ],
+    },
+  },
+  /* ===== 统计图表 ===== */
+  {
+    key: 'candlestick', group: '统计', label: 'K 线图',
+    option: {
+      title: { text: '某股 12 日行情', subtext: 'series.type = "candlestick" · [开, 收, 最低, 最高]，红涨绿跌' },
+      tooltip: {},
+      xAxis: { type: 'category', data: ['10-24','10-25','10-26','10-27','10-30','10-31','11-01','11-02','11-03','11-06','11-07','11-08'] },
+      yAxis: { type: 'value', name: '价格' },
+      series: [{ name: '日线', type: 'candlestick', data: [
+        [20,22,18,23],[21,23,20,24],[23,22,19,24],[22,24,21,25],[24,23,22,26],[23,25,23,27],
+        [25,26,24,28],[26,25,23,27],[25,27,25,29],[27,28,26,30],[28,27,25,29],[27,29,27,31] ] }],
+    },
+  },
+  {
+    key: 'boxplot', group: '统计', label: '盒须图',
+    option: {
+      title: { text: '各部门工时分布', subtext: 'series.type = "boxplot" · [下限, Q1, 中位数, Q3, 上限]' },
+      tooltip: {},
+      xAxis: { type: 'category', data: ['华东','华北','华南','西南','东北','西北'] },
+      yAxis: { type: 'value', name: '工时' },
+      series: [{ name: '工时分布', type: 'boxplot', data: [
+        [620,680,694,726,880],[560,590,610,660,780],[480,540,560,600,700],
+        [600,640,660,700,820],[520,560,590,640,760],[650,700,720,760,900] ] }],
+    },
+  },
+  {
+    key: 'heatmap', group: '统计', label: '热力图',
+    option: {
+      title: { text: '门店客流热力', subtext: 'series.type = "heatmap" · 类目 x 类目 + visualMap 连续色带' },
+      tooltip: {},
+      xAxis: { type: 'category', data: DAYS },
+      yAxis: { type: 'category', data: ['9点','11点','13点','15点','17点'] },
+      visualMap: {},
+      series: [{ name: '客流量', type: 'heatmap', data: [
+        [0,0,5],[0,1,1],[0,2,0],[0,3,2],[0,4,4],
+        [1,0,7],[1,1,3],[1,2,2],[1,3,5],[1,4,6],
+        [2,0,10],[2,1,8],[2,2,6],[2,3,9],[2,4,12],
+        [3,0,14],[3,1,12],[3,2,10],[3,3,15],[3,4,17],
+        [4,0,18],[4,1,16],[4,2,14],[4,3,20],[4,4,24],
+        [5,0,22],[5,1,20],[5,2,19],[5,3,26],[5,4,30],
+        [6,0,28],[6,1,26],[6,2,25],[6,3,33],[6,4,38] ] }],
+    },
+  },
+  {
+    key: 'radar', group: '统计', label: '雷达图',
+    option: {
+      title: { text: '预算 vs 开销', subtext: 'series.type = "radar" · 立体网面 + 指标标签' },
+      tooltip: {},
+      legend: {},
+      radar: {
+        splitNumber: 4,
+        indicator: [
+          { name: '销售', max: 6500 }, { name: '管理', max: 16000 }, { name: '信息技术', max: 30000 },
+          { name: '客服', max: 38000 }, { name: '研发', max: 52000 }, { name: '市场', max: 25000 },
+        ],
+      },
+      series: [{ name: '预算 vs 开销', type: 'radar', data: [
+        { value: [4300, 10000, 28000, 35000, 50000, 19000], name: '预算分配' },
+        { value: [5000, 14000, 28000, 31000, 42000, 21000], name: '实际开销' },
+      ] }],
+    },
+  },
+  {
+    key: 'parallel', group: '统计', label: '平行坐标',
+    option: {
+      title: { text: '商品多维对比', subtext: 'series.type = "parallel" + parallelAxis' },
+      tooltip: {},
+      parallelAxis: [
+        { dim: 0, name: '价格' }, { dim: 1, name: '销量' }, { dim: 2, name: '好评率' }, { dim: 3, name: '发货速度' },
+      ],
+      series: [{ name: '商品', type: 'parallel', data: [
+        [89, 320, 96, 24],[156, 180, 92, 48],[228, 96, 89, 72],
+        [310, 60, 94, 36],[97, 260, 90, 12],[412, 35, 97, 60] ] }],
+    },
+  },
+  /* ===== 关系图表 ===== */
+  {
+    key: 'graph', group: '关系', label: '关系图',
+    option: {
+      title: { text: '三国人物图谱', subtext: 'series.type = "graph" · 圆形布局 + 分类图例' },
+      tooltip: {},
+      legend: {},
+      series: [{
+        name: '关系网络', type: 'graph', layout: 'circle',
+        categories: [{ name: '人物' }, { name: '地点' }, { name: '组织' }],
+        data: [
+          { name: '刘备', category: 0, symbolSize: 38 },
+          { name: '诸葛亮', category: 0, symbolSize: 45, value: '军师' },
+          { name: '关羽', category: 0, symbolSize: 30 },
+          { name: '张飞', category: 0, symbolSize: 28 },
+          { name: '成都', category: 1, symbolSize: 30 },
+          { name: '荆州', category: 1, symbolSize: 26 },
+          { name: '桃园', category: 1, symbolSize: 20 },
+          { name: '蜀汉', category: 2, symbolSize: 40 },
+        ],
+        links: [
+          { source: '刘备', target: '诸葛亮' }, { source: '刘备', target: '关羽' },
+          { source: '刘备', target: '张飞' }, { source: '诸葛亮', target: '蜀汉' },
+          { source: '关羽', target: '荆州' }, { source: '成都', target: '蜀汉' },
+          { source: '张飞', target: '蜀汉' }, { source: '诸葛亮', target: '成都' },
+          { source: '刘备', target: '蜀汉' }, { source: '刘备', target: '桃园' },
+          { source: '关羽', target: '桃园' }, { source: '张飞', target: '桃园' },
+        ],
+      }],
+    },
+  },
+  {
+    key: 'sankey', group: '关系', label: '桑基图',
+    option: {
+      title: { text: '农产品流通', subtext: 'series.type = "sankey" · 3D 能量流管道' },
+      tooltip: {},
+      series: [{
+        name: '流通', type: 'sankey',
+        data: [
+          { name: '化肥' }, { name: '农作物' }, { name: '出口' },
+          { name: '食品加工' }, { name: '超市' }, { name: '餐饮' }, { name: '消费者' },
+        ],
+        links: [
+          { source: '化肥', target: '农作物', value: 30 },
+          { source: '农作物', target: '食品加工', value: 22 },
+          { source: '农作物', target: '出口', value: 8 },
+          { source: '食品加工', target: '超市', value: 14 },
+          { source: '食品加工', target: '餐饮', value: 8 },
+          { source: '超市', target: '消费者', value: 12 },
+          { source: '餐饮', target: '消费者', value: 7 },
+        ],
+      }],
+    },
+  },
+  {
+    key: 'tree', group: '关系', label: '树图',
+    option: {
+      title: { text: '组织架构', subtext: 'series.type = "tree" · 径向 3D 布局' },
+      tooltip: {},
+      series: [{
+        name: '公司', type: 'tree',
+        data: [{
+          name: '总公司',
+          children: [
+            { name: '研发部', children: [
+              { name: '前端组', children: [{ name: '张三' }, { name: '李四' }] },
+              { name: '后端组', children: [{ name: '王五' }, { name: '赵六' }] },
+            ] },
+            { name: '产品部', children: [
+              { name: '设计组', children: [{ name: '孙七' }] },
+              { name: '运营组', children: [{ name: '周八' }, { name: '吴九' }] },
+            ] },
+            { name: '市场部', children: [{ name: '钱十' }] },
+          ],
+        }],
+      }],
+    },
+  },
+  {
+    key: 'treemap', group: '关系', label: '矩形树图',
+    option: {
+      title: { text: '数码品类销量', subtext: 'series.type = "treemap" · squarify 布局 + 3D 挤出' },
+      tooltip: {},
+      series: [{
+        name: '销量', type: 'treemap',
+        data: [
+          { name: '手机', value: 120 }, { name: '笔记本', value: 90 }, { name: '平板', value: 60 },
+          { name: '智能手表', value: 40 }, { name: '耳机', value: 30 }, { name: '配件', value: 22 }, { name: '其他', value: 15 },
+        ],
+      }],
+    },
+  },
+  {
+    key: 'sunburst', group: '关系', label: '旭日图',
+    option: {
+      title: { text: '家庭消费构成', subtext: 'series.type = "sunburst" · 同心 3D 环' },
+      tooltip: {},
+      series: [{
+        name: '消费', type: 'sunburst',
+        data: [
+          { name: '餐饮', children: [
+            { name: '正餐', children: [{ name: '火锅', value: 58 }, { name: '烧烤', value: 36 }] },
+            { name: '零食', value: 24 },
+          ] },
+          { name: '数码', children: [
+            { name: '手机', value: 92 },
+            { name: '电脑', children: [{ name: '台式机', value: 30 }, { name: '笔记本', value: 41 }] },
+          ] },
+        ],
+      }],
+    },
+  },
+  /* ===== 其他图表 ===== */
+  {
+    key: 'funnel', group: '其他', label: '漏斗图',
+    option: {
+      title: { text: '销售转化漏斗', subtext: 'series.type = "funnel" · 3D 截锥堆叠' },
+      tooltip: {},
+      legend: {},
+      series: [{
+        name: '转化', type: 'funnel',
+        data: [
+          { value: 100, name: '展现' }, { value: 80, name: '点击' }, { value: 60, name: '访问' },
+          { value: 40, name: '咨询' }, { value: 20, name: '成交' },
+        ],
+      }],
+    },
+  },
+  {
+    key: 'gauge', group: '其他', label: '仪表盘',
+    option: {
+      title: { text: '年度目标完成率', subtext: 'series.type = "gauge" · 平放 3D 表盘 + 指针动画' },
+      tooltip: {},
+      series: [{
+        name: '完成率', type: 'gauge', max: 100,
+        data: [{ value: 67.4, name: '年度目标完成率' }],
+      }],
+    },
+  },
+  {
+    key: 'lines', group: '其他', label: '路径图',
+    option: {
+      title: { text: '航线网络', subtext: 'series.type = "lines" · 3D 飞线弧' },
+      tooltip: {},
+      series: [{
+        name: '航线', type: 'lines',
+        data: [
+          { coords: [[1, 1], [8, 6]], name: '航线 1', value: 32 },
+          { coords: [[2, 5], [9, 8]], name: '航线 2', value: 18 },
+          { coords: [[3, 2], [7, 7]], name: '航线 3', value: 26 },
+          { coords: [[5, 1], [9, 3]], name: '航线 4', value: 21 },
+          { coords: [[1, 7], [6, 8]], name: '航线 5', value: 14 },
+        ],
+      }],
+    },
+  },
+  {
+    key: 'themeRiver', group: '其他', label: '主题河流',
+    option: {
+      title: { text: '话题热度趋势', subtext: 'series.type = "themeRiver" · 堆叠色带（类目从数据推断）' },
+      tooltip: {},
+      legend: {},
+      yAxis: { type: 'value', name: '热度' },
+      series: [{
+        name: '话题热度', type: 'themeRiver',
+        data: [
+          ['周一', 32, '论坛'], ['周一', 18, '微信'], ['周一', 9, '博客'],
+          ['周二', 40, '论坛'], ['周二', 24, '微信'], ['周二', 12, '博客'],
+          ['周三', 36, '论坛'], ['周三', 30, '微信'], ['周三', 14, '博客'],
+          ['周四', 28, '论坛'], ['周四', 34, '微信'], ['周四', 16, '博客'],
+          ['周五', 44, '论坛'], ['周五', 38, '微信'], ['周五', 18, '博客'],
+          ['周六', 52, '论坛'], ['周六', 46, '微信'], ['周六', 22, '博客'],
+        ],
+      }],
+    },
+  },
+  {
+    key: 'pictorialBar', group: '其他', label: '象形柱图',
+    option: {
+      title: { text: '水果库存', subtext: 'series.type = "pictorialBar" · 圆珠堆叠象形柱' },
+      tooltip: {},
+      legend: {},
+      xAxis: { type: 'category', data: ['苹果','香蕉','橙子','葡萄','西瓜','芒果'] },
+      yAxis: { type: 'value', name: '库存' },
+      series: [{ name: '库存量', type: 'pictorialBar', symbol: 'circle', data: [86, 62, 74, 48, 95, 57] }],
+    },
+  },
+  /* ===== 扩展 ===== */
+  {
+    key: 'surface', group: '扩展', label: '3D 曲面',
+    option: {
+      title: { text: 'Peaks 曲面', subtext: 'series.type = "surface" · equation 自定义函数 + visualMap 渐变' },
+      legend: { data: ['高度场'] },
+      series: [{
+        name: '高度场', type: 'surface', domain: [-3, 3],
+        equation: function (u, v) {
+          return 3 * Math.pow(1 - u, 2) * Math.exp(-u * u - (v + 1) * (v + 1))
+            - 10 * (u / 5 - u * u * u - Math.pow(v, 5)) * Math.exp(-u * u - v * v)
+            - 1 / 3 * Math.exp(-(u + 1) * (u + 1) - v * v);
+        },
+      }],
+    },
+  },
+];
+
+/* ---------------- 页面逻辑 ---------------- */
+const chart = ThreeECharts.init('#chart');
+const toolbar = document.getElementById('toolbar');
+const codeEl = document.getElementById('code');
+
+function optionText(o) {
+  return 'chart.setOption(' + JSON.stringify(o, function (k, v) {
+    if (typeof v === 'function') return v.toString().replace(/\n\s*/g, ' ');
+    return v;
+  }, 2) + ');';
+}
+
+const buttons = [];
+(function buildToolbar() {
+  const groups = [];
+  DEMOS.forEach(d => { if (!groups.includes(d.group)) groups.push(d.group); });
+  groups.forEach(gn => {
+    const chip = document.createElement('span');
+    chip.className = 'tgrp';
+    chip.textContent = gn;
+    toolbar.appendChild(chip);
+    DEMOS.forEach((d, i) => {
+      if (d.group !== gn) return;
+      const btn = document.createElement('button');
+      btn.textContent = d.label;
+      btn.addEventListener('click', () => apply(i));
+      toolbar.appendChild(btn);
+      buttons[i] = btn;
+    });
+  });
+})();
+
+function apply(i) {
+  const d = DEMOS[i];
+  chart.setOption(d.option);
+  codeEl.textContent = optionText(d.option);
+  buttons.forEach((b, j) => b && b.classList.toggle('on', j === i));
+}
+apply(0);
+
+/* 调试/自动化测试钩子 */
+window.__TEC_TEST__ = { chart, apply, demos: DEMOS };
+})();
+</script>
+</body>
+</html>
